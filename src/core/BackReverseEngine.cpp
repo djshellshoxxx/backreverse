@@ -81,6 +81,7 @@ void BackReverseEngine::prepare(double sampleRate, std::size_t channels, std::si
     echoBuffer_.assign(std::max<std::size_t>(1, fxFrames*cfg_.channels), 0.0f);
     stutterScratch_.assign(cfg_.maxChunkFrames*cfg_.channels,0.0f);
     fxScratch_.assign(cfg_.maxChunkFrames*cfg_.channels,0.0f);
+    fxBeforeScratch_.assign(cfg_.maxChunkFrames*cfg_.channels,0.0f);
     reset();
 }
 

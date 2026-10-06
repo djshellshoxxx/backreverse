@@ -92,7 +92,7 @@ private:
     float dry_ {0.0f}; float wet_ {1.0f}; std::mt19937_64 rng_;
     std::vector<float> liveCapture_,livePlayback_; std::size_t captureFrames_ {0},playbackFrame_ {0}; bool playbackReady_ {false};
     std::vector<float> delayBuffer_; std::size_t delayWrite_ {0}; std::vector<float> echoBuffer_; std::size_t echoWrite_ {0};
-    std::vector<float> stutterScratch_,fxScratch_;
+    std::vector<float> stutterScratch_,fxScratch_,fxBeforeScratch_;
     std::size_t chunkFrames(const ChunkParams& p) const; std::vector<std::size_t> makeOrder(std::size_t chunkCount);
     std::vector<float> renderChunk(std::span<const float>,std::size_t,std::size_t,std::size_t,const ChunkParams&);
     void applyStereoAndPhase(std::vector<float>&,std::size_t,const ChunkParams&) const;

@@ -87,14 +87,15 @@ void BackReverseEngine::applyEffectsForGates(std::vector<float>& d,std::size_t c
             const std::size_t step=std::min(steps-1,f*steps/std::max<std::size_t>(1,frames));
             if(!selectedFor(effect,step))for(std::size_t ch=0;ch<channels;++ch)fxScratch_[f*channels+ch]=0.0f;
         }
-        const auto before=d;
+        if(fxBeforeScratch_.size()<d.size())fxBeforeScratch_.resize(d.size());
+        std::copy(d.begin(),d.end(),fxBeforeScratch_.begin());
         fxScratch_.resize(d.size());processEffect(effect,fxScratch_,channels);
         for(std::size_t f=0;f<frames;++f){
             const std::size_t step=std::min(steps-1,f*steps/std::max<std::size_t>(1,frames));
             for(std::size_t ch=0;ch<channels;++ch){
                 const auto i=f*channels+ch;
                 if(selectedFor(effect,step))d[i]=fxScratch_[i];
-                else d[i]=before[i]+fxScratch_[i];
+                else d[i]=fxBeforeScratch_[i]+fxScratch_[i];
             }
         }
         fxScratch_.resize(std::max(fxScratch_.size(),cfg_.maxChunkFrames*cfg_.channels));
