@@ -247,11 +247,12 @@ void BackReverseEngine::processLive(std::span<const float> in,std::span<float> o
             for(std::size_t i=0;i<wanted;++i)
                 for(std::size_t ch=0;ch<channels;++ch)
                     livePlayback_[i*channels+ch]=liveCapture_[(wanted-1-i)*channels+ch];
-            std::vector<float> temp(livePlayback_.begin(),livePlayback_.begin()+wanted*channels);
-            applyGates(temp,channels,chunk_);
-            applyStereoAndPhase(temp,channels,chunk_);
-            applyEffects(temp,channels);
-            std::copy(temp.begin(),temp.end(),livePlayback_.begin());
+            const auto fullSize=livePlayback_.size();
+            livePlayback_.resize(wanted*channels);
+            applyGates(livePlayback_,channels,chunk_);
+            applyStereoAndPhase(livePlayback_,channels,chunk_);
+            applyEffects(livePlayback_,channels);
+            livePlayback_.resize(fullSize);
             captureFrames_=0; playbackFrame_=0; playbackReady_=true;
         } else if(playbackReady_ && playbackFrame_>=wanted) {
             playbackReady_=false;
