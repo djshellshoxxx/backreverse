@@ -121,7 +121,28 @@ void BackReverseEngine::setChunkParams(const ChunkParams& input) {
             point = std::isfinite(point) ? std::clamp(point, 0.0f, 1.0f) : 0.0f;
     }
 }
-void BackReverseEngine::setChunkPattern(std::vector<ChunkParams> p) { pattern_ = std::move(p); }
+void BackReverseEngine::setChunkPattern(std::vector<ChunkParams> p) {
+    for (auto& entry : p) {
+        entry.durationSeconds = std::isfinite(entry.durationSeconds)
+            ? std::max(0.001, entry.durationSeconds) : 0.001;
+        entry.ratio = std::isfinite(entry.ratio)
+            ? std::clamp(entry.ratio, 0.05, 8.0) : 1.0;
+        entry.pan = std::isfinite(entry.pan) ? std::clamp(entry.pan, -1.0f, 1.0f) : 0.0f;
+        entry.phaseDegrees = std::isfinite(entry.phaseDegrees)
+            ? std::clamp(entry.phaseDegrees, -179.0, 179.0) : 0.0;
+        if (entry.gates.size() > 64) entry.gates.resize(64);
+        entry.activeGateCount = entry.activeGateCount == 0
+            ? 0 : std::min(entry.activeGateCount, entry.gates.size());
+        for (auto& gate : entry.gates) {
+            gate.width = std::isfinite(gate.width) ? std::clamp(gate.width, 0.0f, 1.0f) : 1.0f;
+            gate.gap = std::isfinite(gate.gap) ? std::clamp(gate.gap, 0.0f, 1.0f) : 0.0f;
+            gate.depth = std::isfinite(gate.depth) ? std::clamp(gate.depth, 0.0f, 1.0f) : 1.0f;
+            for (float& point : gate.customCurve)
+                point = std::isfinite(point) ? std::clamp(point, 0.0f, 1.0f) : 0.0f;
+        }
+    }
+    pattern_ = std::move(p);
+}
 void BackReverseEngine::setOrderMode(OrderMode m) { cfg_.orderMode=m; }
 void BackReverseEngine::setUserOrder(std::vector<int> p) { userOrder_=std::move(p); }
 void BackReverseEngine::setRandomSeed(std::uint64_t s) { cfg_.randomSeed=s; rng_.seed(s); }
