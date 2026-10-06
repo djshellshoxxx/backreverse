@@ -88,7 +88,7 @@ BackReverseAudioProcessorEditor::BackReverseAudioProcessorEditor(BackReverseAudi
     addCombo(scratchMode,{"Linear","Vinyl","Tape Shuttle","Fine"});addCombo(scratchRelease,{"Latch","Spring Return","Continue"});
     preset.onChange=[this]{if(preset.getSelectedId()>0)p.loadFactoryPreset(preset.getSelectedId()-1);};
 
-    configureSlider(chunk,"Chunk length. Display can be seconds, milliseconds, or samples; live reverse latency follows the same duration.");
+    configureSlider(chunk,"Chunk length. Live buffer capacity is reserved when audio starts from this value; longer selections are capped at the prepared limit. Restart audio after changing the value to reserve a larger buffer.");
     chunk.setTextBoxStyle(juce::Slider::TextBoxBelow,false,104,20);
     chunk.textFromValueFunction=[this](double seconds){int unit=chunkUnit.getSelectedId();if(unit==2)return juce::String(seconds*1000.0,2)+" ms";if(unit==3)return juce::String((juce::int64)std::llround(seconds*std::max(1.0,p.getSampleRate())))+" smp";return juce::String(seconds,4)+" s";};
     chunk.valueFromTextFunction=[this](const juce::String& text){double v=text.getDoubleValue();int unit=chunkUnit.getSelectedId();if(unit==2)return v/1000.0;if(unit==3)return v/std::max(1.0,p.getSampleRate());return v;};
@@ -106,8 +106,8 @@ BackReverseAudioProcessorEditor::BackReverseAudioProcessorEditor(BackReverseAudi
     quarter.onClick=[rate]{rate(0.25f);};half.onClick=[rate]{rate(0.5f);};normal.onClick=[rate]{rate(1.0f);};dbl.onClick=[rate]{rate(2.0f);};triple.onClick=[rate]{rate(3.0f);};
 
     addAndMakeVisible(load);addAndMakeVisible(play);addAndMakeVisible(random);addAndMakeVisible(help);addAndMakeVisible(undo);addAndMakeVisible(redo);
-    undo.onClick=[this]{p.undoManager.undo();gateGrid.repaint();gateCurve.repaint();};
-    redo.onClick=[this]{p.undoManager.redo();gateGrid.repaint();gateCurve.repaint();};
+    undo.onClick=[this]{p.undoManager.undo();p.refreshGateCurveCache();gateGrid.repaint();gateCurve.repaint();};
+    redo.onClick=[this]{p.undoManager.redo();p.refreshGateCurveCache();gateGrid.repaint();gateCurve.repaint();};
     patternText.setTextToShowWhenEmpty("User pattern: 0,+2,REST,1*2,4@50",juce::Colour(0xff687384));
     patternText.setText(p.userPatternText(),false);
     patternText.setTooltip("Advanced chunk pattern: absolute/relative references, REST, *repeat and @probability");
@@ -168,6 +168,10 @@ void BackReverseAudioProcessorEditor::resized(){
 }
 void BackReverseAudioProcessorEditor::timerCallback(){
     const double sec=*p.state.getRawParameterValue("chunkSeconds");
-    latencyLabel.setText("buffer "+juce::String(sec,3)+" s / "+juce::String((int)std::round(sec*p.getSampleRate()))+" samples",juce::dontSendNotification);
+    const double sr=std::max(1.0,p.getSampleRate());
+    const auto limit=p.preparedBufferFrames();
+    const double active=std::min(sec,static_cast<double>(limit)/sr);
+    const bool capped=sec>active+0.0005;
+    latencyLabel.setText("buffer "+juce::String(active,3)+" s / "+juce::String((int)std::round(active*sr))+" samples"+(capped?" (prepared limit)":""),juce::dontSendNotification);
     waveform.repaint();gateGrid.repaint();gateCurve.repaint();
 }
