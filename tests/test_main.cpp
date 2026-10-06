@@ -120,6 +120,13 @@ int main(){
    auto second=e.processFinite({0,1,2,3,4,5,6,7},1);
    CHECK("effect chain order changes rendered result", first!=second);
  }
+
+ {
+   EngineConfig c; c.sampleRate=4.0; c.channels=1; c.maxChunkFrames=100;
+   BackReverseEngine e(c); ChunkParams p; p.durationSeconds=1.0; p.gates.assign(64,GateStep{}); p.activeGateCount=1; p.gates[0].enabled=false; for(std::size_t i=1;i<64;++i)p.gates[i].enabled=true; e.setChunkParams(p);
+   auto y=e.processFinite({1,2,3,4},1); bool allzero=true; for(float v:y)allzero&=near(v,0);
+   CHECK("active gate count ignores inactive capacity",allzero);
+ }
  std::cout<<(failures?"TESTS FAILED":"ALL TESTS PASSED")<<"\n";
  return failures?1:0;
 }
