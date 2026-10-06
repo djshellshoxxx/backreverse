@@ -24,9 +24,13 @@ endif()
 
 if(BACKREVERSE_BUILD_PLUGIN)
   include(FetchContent)
-  FetchContent_Declare(JUCE GIT_REPOSITORY https://github.com/juce-framework/JUCE.git GIT_TAG 8.0.6)
+  FetchContent_Declare(JUCE GIT_REPOSITORY https://github.com/juce-framework/JUCE.git GIT_TAG 8.0.6 GIT_SHALLOW TRUE)
   FetchContent_MakeAvailable(JUCE)
-  FetchContent_Declare(clap_juce_extensions GIT_REPOSITORY https://github.com/free-audio/clap-juce-extensions.git GIT_TAG main)
+  FetchContent_Declare(clap_juce_extensions
+    GIT_REPOSITORY https://github.com/free-audio/clap-juce-extensions.git
+    GIT_TAG main
+    GIT_SUBMODULES_RECURSE TRUE
+  )
   FetchContent_MakeAvailable(clap_juce_extensions)
 
   juce_add_plugin(BackReverse
@@ -42,6 +46,7 @@ if(BACKREVERSE_BUILD_PLUGIN)
     IS_MIDI_EFFECT FALSE
     COPY_PLUGIN_AFTER_BUILD FALSE
   )
+  juce_generate_juce_header(BackReverse)
 
   target_sources(BackReverse PRIVATE
     src/plugin/PluginProcessor.cpp
@@ -59,11 +64,9 @@ if(BACKREVERSE_BUILD_PLUGIN)
     JUCE_VST3_CAN_REPLACE_VST2=0
   )
 
-  if(COMMAND clap_juce_extensions_plugin)
-    clap_juce_extensions_plugin(
-      TARGET BackReverse
-      CLAP_ID "com.circuitdriftlabs.backreverse"
-      CLAP_FEATURES "audio-effect" "stereo"
-    )
-  endif()
+  clap_juce_extensions_plugin(
+    TARGET BackReverse
+    CLAP_ID "com.circuitdriftlabs.backreverse"
+    CLAP_FEATURES "audio-effect" "stereo"
+  )
 endif()
