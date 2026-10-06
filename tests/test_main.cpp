@@ -127,6 +127,22 @@ int main(){
    auto y=e.processFinite({1,2,3,4},1); bool allzero=true; for(float v:y)allzero&=near(v,0);
    CHECK("active gate count ignores inactive capacity",allzero);
  }
+
+ {
+   auto p=parseUserPattern("0,+2,REST,1*2",8,42);
+   CHECK("pattern DSL absolute relative rest repeat",p==std::vector<int>({0,2,-1,1,1}));
+ }
+ {
+   auto a=parseUserPattern("3@50,4@50,5@50,6@50",8,999);
+   auto b=parseUserPattern("3@50,4@50,5@50,6@50",8,999);
+   CHECK("pattern probability deterministic by seed",a==b);
+ }
+ {
+   EngineConfig c; c.sampleRate=1.0; c.channels=1; c.maxChunkFrames=100;
+   BackReverseEngine e(c); ChunkParams p; p.durationSeconds=2.0; e.setChunkParams(p);e.setOrderMode(OrderMode::UserPattern);e.setUserOrder({0,-1,1});
+   auto y=e.processFinite({1,2,3,4},1);
+   CHECK("REST token renders silence",y==std::vector<float>({2,1,0,0,4,3}));
+ }
  std::cout<<(failures?"TESTS FAILED":"ALL TESTS PASSED")<<"\n";
  return failures?1:0;
 }
