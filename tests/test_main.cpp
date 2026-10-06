@@ -101,6 +101,25 @@ int main(){
    std::vector<float> d={0,10,20,30};
    CHECK("scratch interpolation", near(e.scrubSample(d,1,0,1.5),15));
  }
+
+ {
+   EngineConfig c; c.sampleRate=4.0; c.channels=1; c.maxChunkFrames=100;
+   BackReverseEngine e(c); ChunkParams base; base.durationSeconds=1.0; e.setChunkParams(base);
+   ChunkParams a=base,b=base; a.durationSeconds=0.5; b.durationSeconds=1.0; e.setChunkPattern({a,b});
+   auto y=e.processFinite({0,1,2,3,4,5,6,7},1);
+   CHECK("mixed chunk sizes use cumulative boundaries", y==std::vector<float>({1,0,5,4,3,2,7,6}));
+ }
+ {
+   EngineConfig c; c.sampleRate=8.0; c.channels=1; c.maxChunkFrames=100;
+   BackReverseEngine e(c); ChunkParams p; p.durationSeconds=1.0; e.setChunkParams(p);
+   EffectSettings fx; fx.stutter.enabled=true; fx.stutter.periodFrames=4; fx.stutter.repeatFrames=2; fx.stutter.repeats=1; fx.stutter.wet=1; fx.stutter.dry=0;
+   fx.delay.enabled=true; fx.delay.delayFrames=1; fx.delay.feedback=0; fx.delay.wet=1; fx.delay.dry=0;
+   fx.chain={EffectType::Stutter,EffectType::Delay,EffectType::Echo}; e.setEffects(fx);
+   auto first=e.processFinite({0,1,2,3,4,5,6,7},1);
+   e.reset(); fx.chain={EffectType::Delay,EffectType::Stutter,EffectType::Echo}; e.setEffects(fx);
+   auto second=e.processFinite({0,1,2,3,4,5,6,7},1);
+   CHECK("effect chain order changes rendered result", first!=second);
+ }
  std::cout<<(failures?"TESTS FAILED":"ALL TESTS PASSED")<<"\n";
  return failures?1:0;
 }
