@@ -60,7 +60,7 @@ void WaveformView::mouseDrag(const juce::MouseEvent& e){seek(e);}
 
 BackReverseAudioProcessorEditor::BackReverseAudioProcessorEditor(BackReverseAudioProcessor& proc)
 :AudioProcessorEditor(&proc),p(proc),gateGrid(proc),gateCurve(proc),waveform(proc){
-    setResizable(true,true); setResizeLimits(820,620,1600,1100); setSize(1120,820);
+    setResizable(true,true); setResizeLimits(900,850,1700,1250); setSize(1180,1020);
     title.setText("BACKREVERSE",juce::dontSendNotification); title.setFont(juce::Font(28.0f,juce::Font::bold)); addAndMakeVisible(title);
     status.setText("reverse / cut / stretch / scratch",juce::dontSendNotification); addAndMakeVisible(status); addAndMakeVisible(latencyLabel);
     addAndMakeVisible(gateGrid);addAndMakeVisible(gateCurve);addAndMakeVisible(waveform);
@@ -75,14 +75,24 @@ BackReverseAudioProcessorEditor::BackReverseAudioProcessorEditor(BackReverseAudi
     addCombo(gateSteps,{"2","4","8","16","32","64"});addCombo(gateShape,{"Hard","Linear In","Linear Out","Triangle","Equal Power","Sine","Exponential","Logarithmic","Custom"});
     addCombo(gapMode,{"Silence","Dry Through","Hold","Crossfade","FX Tail"});
     addCombo(fxOrder,{"Stutter > Delay > Echo","Stutter > Echo > Delay","Delay > Stutter > Echo","Delay > Echo > Stutter","Echo > Stutter > Delay","Echo > Delay > Stutter"});
+    addCombo(preset,{"Basic 5s Reverse","Whole Track Reverse","Half Speed Reverse","Quarter Stretch Surreal","Triple Speed Fragments","Random Cut Up","Forward Gate Breaks","Stereo Mirror","Polarity Flicker","Stutter Delay Echo","Echo Into Stutter","Vinyl Slow Drag","Extreme Stretch"});
+    addCombo(chunkUnit,{"seconds","milliseconds","samples"});chunkUnit.setSelectedId(1,juce::dontSendNotification);
+    preset.onChange=[this]{if(preset.getSelectedId()>0)p.loadFactoryPreset(preset.getSelectedId()-1);};
 
-    configureSlider(chunk,"Chunk length in seconds. Live reverse latency follows this value.");configureSlider(ratio,"Rate/stretch ratio: 0.25 quarter, 0.5 half, 2 double, 3 triple.");
+    configureSlider(chunk,"Chunk length. Display can be seconds, milliseconds, or samples; live reverse latency follows the same duration.");
+    chunk.textFromValueFunction=[this](double seconds){int unit=chunkUnit.getSelectedId();if(unit==2)return juce::String(seconds*1000.0,2)+" ms";if(unit==3)return juce::String((juce::int64)std::llround(seconds*std::max(1.0,p.getSampleRate())))+" smp";return juce::String(seconds,4)+" s";};
+    chunk.valueFromTextFunction=[this](const juce::String& text){double v=text.getDoubleValue();int unit=chunkUnit.getSelectedId();if(unit==2)return v/1000.0;if(unit==3)return v/std::max(1.0,p.getSampleRate());return v;};
+    chunkUnit.onChange=[this]{chunk.updateText();p.state.state.setProperty("chunkDisplayUnit",chunkUnit.getSelectedId(),&p.undoManager);};
+    chunkUnit.setSelectedId((int)p.state.state.getProperty("chunkDisplayUnit",1),juce::dontSendNotification);configureSlider(ratio,"Rate/stretch ratio: 0.25 quarter, 0.5 half, 2 double, 3 triple.");
     configureSlider(pan,"Stereo pan");configureSlider(phase,"Frequency-dependent all-pass phase rotation");configureSlider(dry,"Dry level");configureSlider(wet,"Processed level");
     configureSlider(gateWidth,"Gate active width");configureSlider(gateGap,"Gate gap proportion");
     configureSlider(stutterWet,"Stut Wet");configureSlider(stutterDry,"Stut Dry");configureSlider(stutterDecay,"Stut Decay");configureSlider(stutterRepeats,"Stut Repeats");
     configureSlider(delayWet,"Delay Wet");configureSlider(delayDry,"Delay Dry");configureSlider(delayFeedback,"Delay Feedback");configureSlider(delayLowpass,"Delay LP");configureSlider(delayHighpass,"Delay HP");
     configureSlider(echoWet,"Echo Wet");configureSlider(echoDry,"Echo Dry");configureSlider(echoFeedback,"Echo Feedback");configureSlider(echoDamping,"Echo Damping");configureSlider(echoSpread,"Echo Spread");configureSlider(echoDrift,"Echo Drift");configureSlider(echoWow,"Echo Wow");
     for(auto* b:{&swap,&hostSync,&stutter,&delay,&echo,&stutterAlternate,&delayPingPong}) addAndMakeVisible(*b);
+    for(auto* b:{&quarter,&half,&normal,&dbl,&triple})addAndMakeVisible(*b);
+    auto rate=[this](float v){if(auto* q=p.state.getParameter("ratio"))q->setValueNotifyingHost(q->convertTo0to1(v));};
+    quarter.onClick=[rate]{rate(0.25f);};half.onClick=[rate]{rate(0.5f);};normal.onClick=[rate]{rate(1.0f);};dbl.onClick=[rate]{rate(2.0f);};triple.onClick=[rate]{rate(3.0f);};
 
     addAndMakeVisible(load);addAndMakeVisible(play);addAndMakeVisible(random);addAndMakeVisible(help);addAndMakeVisible(undo);addAndMakeVisible(redo);
     undo.onClick=[this]{p.undoManager.undo();gateGrid.repaint();gateCurve.repaint();};
@@ -126,9 +136,10 @@ void BackReverseAudioProcessorEditor::paint(juce::Graphics& g){
 }
 void BackReverseAudioProcessorEditor::resized(){
     auto r=getLocalBounds().reduced(22);auto top=r.removeFromTop(48);title.setBounds(top.removeFromLeft(230));status.setBounds(top.removeFromLeft(290));latencyLabel.setBounds(top.removeFromLeft(250));
-    auto actions=r.removeFromTop(34);load.setBounds(actions.removeFromLeft(105));play.setBounds(actions.removeFromLeft(75));random.setBounds(actions.removeFromLeft(105));undo.setBounds(actions.removeFromLeft(65));redo.setBounds(actions.removeFromLeft(65));help.setBounds(actions.removeFromLeft(70));hostSync.setBounds(actions.removeFromLeft(100));syncDivision.setBounds(actions.removeFromLeft(100));
+    auto actions=r.removeFromTop(34);load.setBounds(actions.removeFromLeft(105));play.setBounds(actions.removeFromLeft(75));preset.setBounds(actions.removeFromLeft(165).reduced(2));random.setBounds(actions.removeFromLeft(100));undo.setBounds(actions.removeFromLeft(60));redo.setBounds(actions.removeFromLeft(60));help.setBounds(actions.removeFromLeft(65));hostSync.setBounds(actions.removeFromLeft(95));syncDivision.setBounds(actions.removeFromLeft(90));chunkUnit.setBounds(actions.removeFromLeft(100));
     r.removeFromTop(8);waveform.setBounds(r.removeFromTop(130));
     r.removeFromTop(5);patternText.setBounds(r.removeFromTop(30));
+    auto rates=r.removeFromTop(31);for(auto* b:{&quarter,&half,&normal,&dbl,&triple})b->setBounds(rates.removeFromLeft(58).reduced(2));
     auto combos=r.removeFromTop(38);reverseMode.setBounds(combos.removeFromLeft(145).reduced(3));orderMode.setBounds(combos.removeFromLeft(145).reduced(3));timeMode.setBounds(combos.removeFromLeft(130).reduced(3));polarity.setBounds(combos.removeFromLeft(120).reduced(3));fxOrder.setBounds(combos.reduced(3));
     auto knobs=r.removeFromTop(138);const int kw=knobs.getWidth()/8;for(auto* s:{&chunk,&ratio,&pan,&phase,&dry,&wet,&gateWidth,&gateGap})s->setBounds(knobs.removeFromLeft(kw).reduced(4));
     auto gateCtl=r.removeFromTop(34);gateSteps.setBounds(gateCtl.removeFromLeft(90).reduced(2));gateShape.setBounds(gateCtl.removeFromLeft(130).reduced(2));gapMode.setBounds(gateCtl.removeFromLeft(115).reduced(2));swap.setBounds(gateCtl.removeFromLeft(105));stutter.setBounds(gateCtl.removeFromLeft(85));delay.setBounds(gateCtl.removeFromLeft(75));echo.setBounds(gateCtl.removeFromLeft(75));

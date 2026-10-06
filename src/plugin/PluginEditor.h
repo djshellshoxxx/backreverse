@@ -51,8 +51,9 @@ private:
 
     juce::Label title,status,latencyLabel;
     juce::TextButton load{"Load Audio"},play{"Pause"},random{"Randomize"},help{"Help"},undo{"Undo"},redo{"Redo"};
+    juce::TextButton quarter{"1/4x"},half{"1/2x"},normal{"1x"},dbl{"2x"},triple{"3x"};
     juce::TextEditor patternText;
-    juce::ComboBox reverseMode,orderMode,timeMode,polarity,syncDivision,gateSteps,gateShape,gapMode,fxOrder;
+    juce::ComboBox reverseMode,orderMode,timeMode,polarity,syncDivision,gateSteps,gateShape,gapMode,fxOrder,preset,chunkUnit;
     juce::Slider chunk,ratio,pan,phase,dry,wet,gateWidth,gateGap;
     juce::Slider stutterWet,stutterDry,stutterDecay,stutterRepeats;
     juce::Slider delayWet,delayDry,delayFeedback,delayLowpass,delayHighpass;

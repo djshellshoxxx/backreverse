@@ -225,6 +225,30 @@ void BackReverseAudioProcessor::randomize(std::uint64_t s){
     if(auto* q=state.getParameter("ratio")){const float choices[]={0.25f,0.5f,1.0f,2.0f,3.0f,1.5f,4.0f};const float plain=choices[r()%7];q->setValueNotifyingHost(q->convertTo0to1(plain));}
     state.state.setProperty("seed",(juce::int64)seed,nullptr);
 }
+void BackReverseAudioProcessor::loadFactoryPreset(int i){
+    auto set=[this](const char* id,float plain){if(auto* q=state.getParameter(id))q->setValueNotifyingHost(q->convertTo0to1(plain));};
+    auto setBool=[this](const char* id,bool v){if(auto* q=state.getParameter(id))q->setValueNotifyingHost(v?1.0f:0.0f);};
+    // Reset a small common base first.
+    set("chunkSeconds",5.0f);set("ratio",1.0f);set("temporalMode",0);set("orderMode",0);set("reverseMode",0);
+    setBool("stutterOn",false);setBool("delayOn",false);setBool("echoOn",false);set("pan",0);set("polarity",0);setBool("swapStereo",false);
+    switch(i){
+        case 0: break;
+        case 1:set("reverseMode",1);break;
+        case 2:set("chunkSeconds",2);set("ratio",0.5f);break;
+        case 3:set("chunkSeconds",0.75f);set("temporalMode",1);set("ratio",0.25f);break;
+        case 4:set("chunkSeconds",0.25f);set("ratio",3.0f);break;
+        case 5:set("chunkSeconds",0.5f);set("orderMode",2);seed=31337;engine.setRandomSeed(seed);break;
+        case 6:set("chunkSeconds",2);for(int k=0;k<64;++k)setGateForward(k,(k%4)==3);break;
+        case 7:setBool("swapStereo",true);break;
+        case 8:set("polarity",1);break;
+        case 9:setBool("stutterOn",true);setBool("delayOn",true);setBool("echoOn",true);set("fxOrder",0);break;
+        case 10:setBool("stutterOn",true);setBool("echoOn",true);set("fxOrder",4);break;
+        case 11:set("chunkSeconds",4);set("ratio",0.5f);break;
+        case 12:set("chunkSeconds",0.2f);set("temporalMode",1);set("ratio",0.1f);break;
+        default:break;
+    }
+    state.state.setProperty("seed",(juce::int64)seed,&undoManager);syncEngineFromParameters();
+}
 void BackReverseAudioProcessor::getStateInformation(juce::MemoryBlock& d){state.state.setProperty("schemaVersion",1,nullptr);state.state.setProperty("seed",(juce::int64)seed,nullptr);auto xml=state.copyState().createXml();copyXmlToBinary(*xml,d);}
 void BackReverseAudioProcessor::setStateInformation(const void* d,int n){if(auto xml=getXmlFromBinary(d,n)){auto v=juce::ValueTree::fromXml(*xml);if(v.isValid())state.replaceState(v);}seed=(std::uint64_t)(juce::int64)state.state.getProperty("seed",(juce::int64)0xBACC0FFEEULL);for(int i=0;i<(int)gateMask.size();++i){gateMask[(std::size_t)i]=(bool)state.state.getProperty("gateMask"+juce::String(i),true);gateForward[(std::size_t)i]=(bool)state.state.getProperty("gateForward"+juce::String(i),false);
         gateStutter[(std::size_t)i]=(bool)state.state.getProperty("gateStutter"+juce::String(i),false);

@@ -51,6 +51,7 @@ public:
     float gateCurvePoint(int index) const;
     int activeGateCount() const;
     void randomize(std::uint64_t seed);
+    void loadFactoryPreset(int index);
     void setUserPatternText(const juce::String& text);
     juce::String userPatternText() const;
     void syncEngineFromParameters();
