@@ -4,22 +4,31 @@
 void GateGrid::paint(juce::Graphics& g){
     const int n=processor.activeGateCount();
     const int cols=std::min(16,n), rows=(n+cols-1)/cols;
-    auto r=getLocalBounds().toFloat();
-    const float cw=r.getWidth()/cols, ch=r.getHeight()/rows;
+    auto r=getLocalBounds().toFloat(); const float cw=r.getWidth()/cols,ch=r.getHeight()/rows;
     for(int i=0;i<n;++i){
-        const int x=i%cols,y=i/cols; juce::Rectangle<float> cell(r.getX()+x*cw,r.getY()+y*ch,cw-2,ch-2);
+        const int x=i%cols,y=i/cols;juce::Rectangle<float> cell(r.getX()+x*cw,r.getY()+y*ch,cw-2,ch-2);
         g.setColour(processor.gateEnabled(i)?juce::Colour(0xff3ed6c6):juce::Colour(0xff29313d));g.fillRoundedRectangle(cell,3);
-        if(processor.gateForwardState(i)){g.setColour(juce::Colour(0xffffc857));g.fillEllipse(cell.getRight()-9,cell.getY()+3,6,6);}
+        g.setFont(8.0f);float bx=cell.getX()+2;
+        auto badge=[&](const char* s,bool on,juce::Colour colour){if(!on)return;g.setColour(colour);g.drawText(s,(int)bx,(int)cell.getY()+1,8,9,juce::Justification::centred);bx+=8;};
+        badge("F",processor.gateForwardState(i),juce::Colour(0xffffc857));
+        badge("S",processor.gateEffectState(i,br::EffectType::Stutter),juce::Colour(0xffff7a8a));
+        badge("D",processor.gateEffectState(i,br::EffectType::Delay),juce::Colour(0xff8ab4ff));
+        badge("E",processor.gateEffectState(i,br::EffectType::Echo),juce::Colour(0xffc49aff));
         g.setColour(juce::Colour(0xff0b0e13));g.setFont(10);g.drawText(juce::String(i+1),cell,juce::Justification::centred);
     }
 }
-void GateGrid::applyAt(juce::Point<int> p,bool right){
-    const int n=processor.activeGateCount(); const int cols=std::min(16,n),rows=(n+cols-1)/cols;
-    int col=juce::jlimit(0,cols-1,p.x*cols/std::max(1,getWidth())); int row=juce::jlimit(0,rows-1,p.y*rows/std::max(1,getHeight())); int idx=row*cols+col;if(idx>=n)return;
-    if(right) processor.setGateForward(idx,!processor.gateForwardState(idx)); else processor.setGateEnabled(idx,!processor.gateEnabled(idx)); repaint();
+void GateGrid::applyAt(juce::Point<int> p,const juce::ModifierKeys& mods){
+    const int n=processor.activeGateCount();const int cols=std::min(16,n),rows=(n+cols-1)/cols;
+    int col=juce::jlimit(0,cols-1,p.x*cols/std::max(1,getWidth()));int row=juce::jlimit(0,rows-1,p.y*rows/std::max(1,getHeight()));int idx=row*cols+col;if(idx>=n)return;
+    if(mods.isShiftDown())processor.setGateEffect(idx,br::EffectType::Stutter,!processor.gateEffectState(idx,br::EffectType::Stutter));
+    else if(mods.isCtrlDown()||mods.isCommandDown())processor.setGateEffect(idx,br::EffectType::Delay,!processor.gateEffectState(idx,br::EffectType::Delay));
+    else if(mods.isAltDown())processor.setGateEffect(idx,br::EffectType::Echo,!processor.gateEffectState(idx,br::EffectType::Echo));
+    else if(mods.isRightButtonDown())processor.setGateForward(idx,!processor.gateForwardState(idx));
+    else processor.setGateEnabled(idx,!processor.gateEnabled(idx));
+    repaint();
 }
-void GateGrid::mouseDown(const juce::MouseEvent& e){applyAt(e.getPosition(),e.mods.isRightButtonDown());}
-void GateGrid::mouseDrag(const juce::MouseEvent& e){applyAt(e.getPosition(),e.mods.isRightButtonDown());}
+void GateGrid::mouseDown(const juce::MouseEvent& ev){applyAt(ev.getPosition(),ev.mods);}
+void GateGrid::mouseDrag(const juce::MouseEvent& ev){applyAt(ev.getPosition(),ev.mods);}
 
 void WaveformView::paint(juce::Graphics& g){
     auto r=getLocalBounds().toFloat();g.setColour(juce::Colour(0xff080b10));g.fillRoundedRectangle(r,5);
@@ -42,7 +51,7 @@ BackReverseAudioProcessorEditor::BackReverseAudioProcessorEditor(BackReverseAudi
     title.setText("BACKREVERSE",juce::dontSendNotification); title.setFont(juce::Font(28.0f,juce::Font::bold)); addAndMakeVisible(title);
     status.setText("reverse / cut / stretch / scratch",juce::dontSendNotification); addAndMakeVisible(status); addAndMakeVisible(latencyLabel);
     addAndMakeVisible(gateGrid);addAndMakeVisible(waveform);
-    gateGrid.setTooltip("Left-click gates on/off. Right-click toggles forced-forward playback.");
+    gateGrid.setTooltip("Gate grid: click on/off, right-click forward, Shift=Stutter, Ctrl/Cmd=Delay, Alt=Echo.");
 
     auto addCombo=[this](juce::ComboBox& b,std::initializer_list<const char*> xs){int i=1;for(auto* x:xs)b.addItem(x,i++);addAndMakeVisible(b);};
     addCombo(reverseMode,{"Sequential","Whole Source","Reordered","Free Scrub","Hybrid"});
@@ -86,7 +95,7 @@ void BackReverseAudioProcessorEditor::configureSlider(juce::Slider& s,const juce
 void BackReverseAudioProcessorEditor::paint(juce::Graphics& g){
     g.fillAll(juce::Colour(0xff0b0e13));g.setColour(juce::Colour(0xff141b24));g.fillRoundedRectangle(getLocalBounds().toFloat().reduced(12),12);
     g.setColour(juce::Colour(0xff3ed6c6));g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(12),12,1.5f);
-    g.setColour(juce::Colour(0xff8b95a5));g.setFont(12);g.drawText("Gate: left click on/off • right click forward • waveform drag = seek/scratch",20,getHeight()-30,getWidth()-40,18,juce::Justification::centred);
+    g.setColour(juce::Colour(0xff8b95a5));g.setFont(12);g.drawText("Gate: click on/off • right=F • Shift=S • Ctrl=Delay • Alt=Echo • waveform drag=scratch",20,getHeight()-30,getWidth()-40,18,juce::Justification::centred);
 }
 void BackReverseAudioProcessorEditor::resized(){
     auto r=getLocalBounds().reduced(22);auto top=r.removeFromTop(48);title.setBounds(top.removeFromLeft(230));status.setBounds(top.removeFromLeft(290));latencyLabel.setBounds(top.removeFromLeft(250));

@@ -44,6 +44,8 @@ public:
     bool gateEnabled(int index) const;
     void setGateForward(int index,bool forward);
     bool gateForwardState(int index) const;
+    void setGateEffect(int index,br::EffectType effect,bool enabled);
+    bool gateEffectState(int index,br::EffectType effect) const;
     int activeGateCount() const;
     void randomize(std::uint64_t seed);
     void setUserPatternText(const juce::String& text);
@@ -57,6 +59,7 @@ private:
     br::EffectSettings fx;
     std::vector<bool> gateMask;
     std::vector<bool> gateForward;
+    std::vector<bool> gateStutter,gateDelay,gateEcho;
     std::uint64_t seed {0xBACC0FFEEULL};
     std::atomic<double> lastBpm {120.0};
 

@@ -9,7 +9,7 @@ public:
     void mouseDown(const juce::MouseEvent&) override;
     void mouseDrag(const juce::MouseEvent&) override;
 private:
-    void applyAt(juce::Point<int>,bool right);
+    void applyAt(juce::Point<int>,const juce::ModifierKeys&);
     BackReverseAudioProcessor& processor;
 };
 

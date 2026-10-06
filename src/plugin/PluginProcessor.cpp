@@ -14,6 +14,7 @@ BackReverseAudioProcessor::BackReverseAudioProcessor()
   state(*this,nullptr,"STATE",makeLayout()), engine(br::EngineConfig{}) {
     formatManager.registerBasicFormats();
     gateMask.assign(64,true); gateForward.assign(64,false);
+    gateStutter.assign(64,false); gateDelay.assign(64,false); gateEcho.assign(64,false);
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout BackReverseAudioProcessor::makeLayout(){
@@ -99,7 +100,8 @@ void BackReverseAudioProcessor::syncEngineFromParameters(){
     const auto gapMode=static_cast<br::GapMode>(std::clamp(static_cast<int>(*state.getRawParameterValue("gapMode")),0,4));
     const float width=*state.getRawParameterValue("gateWidth");
     const float gap=*state.getRawParameterValue("gateGap");
-    for(int i=0;i<64;++i){ auto& g=params.gates[(std::size_t)i]; g.enabled=(i<gateCount)?gateMask[(std::size_t)i]:false;g.shape=shape;g.width=width;g.gap=gap;g.gapMode=gapMode;g.direction=gateForward[(std::size_t)i]?br::GateDirection::ForceForward:br::GateDirection::Inherit; }
+    for(int i=0;i<64;++i){ auto& g=params.gates[(std::size_t)i]; g.enabled=(i<gateCount)?gateMask[(std::size_t)i]:false;g.shape=shape;g.width=width;g.gap=gap;g.gapMode=gapMode;g.direction=gateForward[(std::size_t)i]?br::GateDirection::ForceForward:br::GateDirection::Inherit;
+        g.stutter=gateStutter[(std::size_t)i]; g.delay=gateDelay[(std::size_t)i]; g.echo=gateEcho[(std::size_t)i]; }
 
     engine.setChunkParams(params);
     engine.setReverseMode(static_cast<br::ReverseMode>(static_cast<int>(*state.getRawParameterValue("reverseMode"))));
@@ -179,6 +181,18 @@ void BackReverseAudioProcessor::setGateEnabled(int i,bool e){if(i>=0&&i<(int)gat
 bool BackReverseAudioProcessor::gateEnabled(int i)const{return i>=0&&i<(int)gateMask.size()?gateMask[(std::size_t)i]:false;}
 void BackReverseAudioProcessor::setGateForward(int i,bool e){if(i>=0&&i<(int)gateForward.size()){gateForward[(std::size_t)i]=e;state.state.setProperty("gateForward"+juce::String(i),e,nullptr);}}
 bool BackReverseAudioProcessor::gateForwardState(int i)const{return i>=0&&i<(int)gateForward.size()?gateForward[(std::size_t)i]:false;}
+void BackReverseAudioProcessor::setGateEffect(int i,br::EffectType effect,bool enabled){
+    if(i<0||i>=64)return; auto idx=(std::size_t)i;
+    if(effect==br::EffectType::Stutter){gateStutter[idx]=enabled;state.state.setProperty("gateStutter"+juce::String(i),enabled,nullptr);}
+    else if(effect==br::EffectType::Delay){gateDelay[idx]=enabled;state.state.setProperty("gateDelay"+juce::String(i),enabled,nullptr);}
+    else {gateEcho[idx]=enabled;state.state.setProperty("gateEcho"+juce::String(i),enabled,nullptr);}
+}
+bool BackReverseAudioProcessor::gateEffectState(int i,br::EffectType effect)const{
+    if(i<0||i>=64)return false;auto idx=(std::size_t)i;
+    if(effect==br::EffectType::Stutter)return gateStutter[idx];
+    if(effect==br::EffectType::Delay)return gateDelay[idx];
+    return gateEcho[idx];
+}
 
 void BackReverseAudioProcessor::setUserPatternText(const juce::String& text){
     state.state.setProperty("userPattern",text,nullptr);
@@ -193,6 +207,9 @@ void BackReverseAudioProcessor::randomize(std::uint64_t s){
     state.state.setProperty("seed",(juce::int64)seed,nullptr);
 }
 void BackReverseAudioProcessor::getStateInformation(juce::MemoryBlock& d){state.state.setProperty("schemaVersion",1,nullptr);state.state.setProperty("seed",(juce::int64)seed,nullptr);auto xml=state.copyState().createXml();copyXmlToBinary(*xml,d);}
-void BackReverseAudioProcessor::setStateInformation(const void* d,int n){if(auto xml=getXmlFromBinary(d,n)){auto v=juce::ValueTree::fromXml(*xml);if(v.isValid())state.replaceState(v);}seed=(std::uint64_t)(juce::int64)state.state.getProperty("seed",(juce::int64)0xBACC0FFEEULL);for(int i=0;i<(int)gateMask.size();++i){gateMask[(std::size_t)i]=(bool)state.state.getProperty("gateMask"+juce::String(i),true);gateForward[(std::size_t)i]=(bool)state.state.getProperty("gateForward"+juce::String(i),false);}syncEngineFromParameters();}
+void BackReverseAudioProcessor::setStateInformation(const void* d,int n){if(auto xml=getXmlFromBinary(d,n)){auto v=juce::ValueTree::fromXml(*xml);if(v.isValid())state.replaceState(v);}seed=(std::uint64_t)(juce::int64)state.state.getProperty("seed",(juce::int64)0xBACC0FFEEULL);for(int i=0;i<(int)gateMask.size();++i){gateMask[(std::size_t)i]=(bool)state.state.getProperty("gateMask"+juce::String(i),true);gateForward[(std::size_t)i]=(bool)state.state.getProperty("gateForward"+juce::String(i),false);
+        gateStutter[(std::size_t)i]=(bool)state.state.getProperty("gateStutter"+juce::String(i),false);
+        gateDelay[(std::size_t)i]=(bool)state.state.getProperty("gateDelay"+juce::String(i),false);
+        gateEcho[(std::size_t)i]=(bool)state.state.getProperty("gateEcho"+juce::String(i),false);}syncEngineFromParameters();}
 juce::AudioProcessorEditor* BackReverseAudioProcessor::createEditor(){return new BackReverseAudioProcessorEditor(*this);}
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter(){return new BackReverseAudioProcessor();}
