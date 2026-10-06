@@ -126,6 +126,14 @@ int main(){
    CHECK("mixed chunk sizes use cumulative boundaries", y==std::vector<float>({1,0,5,4,3,2,7,6}));
  }
  {
+   EngineConfig c; c.sampleRate=4.0; c.channels=1; c.maxChunkFrames=100;
+   BackReverseEngine e(c); ChunkParams base; base.durationSeconds=1.0; e.setChunkParams(base);
+   ChunkParams bad=base; bad.ratio=std::numeric_limits<double>::quiet_NaN();
+   e.setChunkPattern({bad}); auto y=e.processFinite({0,1,2,3},1);
+   bool finite=true; for(float v:y)finite&=std::isfinite(v);
+   CHECK("chunk pattern parameters are sanitized", y.size()==4 && finite);
+ }
+ {
    EngineConfig c; c.sampleRate=8.0; c.channels=1; c.maxChunkFrames=100;
    BackReverseEngine e(c); ChunkParams p; p.durationSeconds=1.0; e.setChunkParams(p);
    EffectSettings fx; fx.stutter.enabled=true; fx.stutter.periodFrames=4; fx.stutter.repeatFrames=2; fx.stutter.repeats=1; fx.stutter.wet=1; fx.stutter.dry=0;
