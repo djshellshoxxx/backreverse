@@ -14,7 +14,6 @@ public:
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
-
     const juce::String getName() const override { return "BackReverse"; }
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
@@ -28,7 +27,6 @@ public:
 
     void getStateInformation(juce::MemoryBlock&) override;
     void setStateInformation(const void*, int) override;
-
     static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout();
     juce::AudioProcessorValueTreeState state;
 
@@ -40,23 +38,29 @@ public:
     void seekFile(double normalized);
     double filePlayheadNormalized() const noexcept;
     double fileLengthSeconds() const noexcept;
+    std::vector<float> getWaveformPeaks() const { return waveformPeaks; }
 
     void setGateEnabled(int index,bool enabled);
     bool gateEnabled(int index) const;
     void setGateForward(int index,bool forward);
+    bool gateForwardState(int index) const;
+    int activeGateCount() const;
     void randomize(std::uint64_t seed);
     void syncEngineFromParameters();
 
 private:
+    static double beatsForDivision(int index);
     br::BackReverseEngine engine;
     br::ChunkParams params;
     br::EffectSettings fx;
     std::vector<bool> gateMask;
     std::vector<bool> gateForward;
     std::uint64_t seed {0xBACC0FFEEULL};
+    std::atomic<double> lastBpm {120.0};
 
     juce::AudioFormatManager formatManager;
     std::vector<float> loadedInterleaved;
+    std::vector<float> waveformPeaks;
     std::atomic<bool> fileActive {false};
     std::atomic<bool> filePlaying {false};
     std::atomic<std::size_t> fileFrame {0};

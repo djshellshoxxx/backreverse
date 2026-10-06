@@ -2,6 +2,28 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 
+class GateGrid final : public juce::Component {
+public:
+    explicit GateGrid(BackReverseAudioProcessor& p):processor(p){}
+    void paint(juce::Graphics&) override;
+    void mouseDown(const juce::MouseEvent&) override;
+    void mouseDrag(const juce::MouseEvent&) override;
+private:
+    void applyAt(juce::Point<int>,bool right);
+    BackReverseAudioProcessor& processor;
+};
+
+class WaveformView final : public juce::Component {
+public:
+    explicit WaveformView(BackReverseAudioProcessor& p):processor(p){}
+    void paint(juce::Graphics&) override;
+    void mouseDown(const juce::MouseEvent&) override;
+    void mouseDrag(const juce::MouseEvent&) override;
+private:
+    void seek(const juce::MouseEvent&);
+    BackReverseAudioProcessor& processor;
+};
+
 class BackReverseAudioProcessorEditor final : public juce::AudioProcessorEditor, private juce::Timer {
 public:
     explicit BackReverseAudioProcessorEditor(BackReverseAudioProcessor&);
@@ -12,14 +34,14 @@ private:
     void timerCallback() override;
     void configureSlider(juce::Slider&,const juce::String&);
     BackReverseAudioProcessor& p;
+    GateGrid gateGrid;
+    WaveformView waveform;
 
     juce::Label title,status,latencyLabel;
-    juce::TextButton load{"Load Audio"},play{"Pause"},random{"Randomize"};
-    juce::ComboBox reverseMode,orderMode,timeMode,polarity;
-    juce::Slider chunk,ratio,pan,phase,dry,wet,playhead;
-    juce::ToggleButton swap{"Swap L/R"},stutter{"Stutter"},delay{"Delay"},echo{"Echo"};
-    std::array<juce::TextButton,16> gates;
-    std::array<juce::ToggleButton,16> gateDir;
+    juce::TextButton load{"Load Audio"},play{"Pause"},random{"Randomize"},help{"Help"};
+    juce::ComboBox reverseMode,orderMode,timeMode,polarity,syncDivision,gateSteps,gateShape,gapMode,fxOrder;
+    juce::Slider chunk,ratio,pan,phase,dry,wet,gateWidth,gateGap;
+    juce::ToggleButton swap{"Swap L/R"},hostSync{"Host Sync"},stutter{"Stutter"},delay{"Delay"},echo{"Echo"};
 
     using SA=juce::AudioProcessorValueTreeState::SliderAttachment;
     using BA=juce::AudioProcessorValueTreeState::ButtonAttachment;
