@@ -52,7 +52,7 @@ struct ChunkParams {
 struct EngineConfig {
     double sampleRate {48000.0};
     std::size_t channels {2};
-    std::size_t maxChunkFrames {48000 * 600};
+    std::size_t maxChunkFrames {48000 * 5};
     BoundaryMode boundary {BoundaryMode::EqualPowerCrossfade};
     std::size_t crossfadeFrames {64};
     ReverseMode reverseMode {ReverseMode::SequentialChunks};
