@@ -196,8 +196,9 @@ void BackReverseEngine::applyGates(std::vector<float>& d,std::size_t channels,co
 
         const double activeEnd=std::clamp<double>(g.width*(1.0-g.gap),0.0,1.0);
         const double gapStart=std::clamp<double>(1.0-g.gap,activeEnd,1.0);
-        std::vector<float> held(channels,0.0f);
-        for(std::size_t ch=0;ch<channels;++ch) held[ch]=d[a*channels+ch];
+        std::array<float,64> held{};
+        const std::size_t heldChannels=std::min<std::size_t>(channels,held.size());
+        for(std::size_t ch=0;ch<heldChannels;++ch) held[ch]=d[a*channels+ch];
 
         for(std::size_t i=0;i<n;++i){
             const double ph=static_cast<double>(i)/std::max<std::size_t>(1,n-1);
@@ -229,9 +230,9 @@ void BackReverseEngine::applyGates(std::vector<float>& d,std::size_t channels,co
 
             for(std::size_t ch=0;ch<channels;++ch){
                 auto& sample=d[(a+i)*channels+ch];
-                if(g.enabled && ph>activeEnd && g.gapMode==GapMode::HoldPrevious) sample=held[ch];
+                if(g.enabled && ph>activeEnd && g.gapMode==GapMode::HoldPrevious && ch<heldChannels) sample=held[ch];
                 else sample*=gain;
-                if(g.enabled && ph<=activeEnd) held[ch]=sample;
+                if(g.enabled && ph<=activeEnd && ch<heldChannels) held[ch]=sample;
             }
         }
     }
