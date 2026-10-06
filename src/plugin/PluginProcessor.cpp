@@ -34,7 +34,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout BackReverseAudioProcessor::m
     p.push_back(std::make_unique<juce::AudioParameterFloat>("wet","Wet",0.0f,1.0f,1.0f));
 
     p.push_back(std::make_unique<juce::AudioParameterChoice>("gateSteps","Gate Steps",juce::StringArray{"2","4","8","16","32","64"},3));
-    p.push_back(std::make_unique<juce::AudioParameterChoice>("gateShape","Gate Shape",juce::StringArray{"Hard","Linear In","Linear Out","Triangle","Equal Power","Sine","Exponential","Logarithmic"},4));
+    p.push_back(std::make_unique<juce::AudioParameterChoice>("gateShape","Gate Shape",juce::StringArray{"Hard","Linear In","Linear Out","Triangle","Equal Power","Sine","Exponential","Logarithmic","Custom"},4));
     p.push_back(std::make_unique<juce::AudioParameterFloat>("gateWidth","Gate Width",0.01f,1.0f,0.88f));
     p.push_back(std::make_unique<juce::AudioParameterFloat>("gateGap","Gate Gap",0.0f,0.99f,0.12f));
     p.push_back(std::make_unique<juce::AudioParameterChoice>("gapMode","Gap Mode",juce::StringArray{"Silence","Dry Through","Hold","Crossfade","FX Tail"},0));
@@ -95,7 +95,7 @@ void BackReverseAudioProcessor::syncEngineFromParameters(){
     const int gateCount=activeGateCount();
     if(params.gates.size()!=64) params.gates.assign(64,br::GateStep{});
     params.activeGateCount=static_cast<std::size_t>(gateCount);
-    const auto shape=static_cast<br::GateShape>(std::clamp(static_cast<int>(*state.getRawParameterValue("gateShape")),0,7));
+    const auto shape=static_cast<br::GateShape>(std::clamp(static_cast<int>(*state.getRawParameterValue("gateShape")),0,8));
     const auto gapMode=static_cast<br::GapMode>(std::clamp(static_cast<int>(*state.getRawParameterValue("gapMode")),0,4));
     const float width=*state.getRawParameterValue("gateWidth");
     const float gap=*state.getRawParameterValue("gateGap");

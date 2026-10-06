@@ -178,6 +178,7 @@ float BackReverseEngine::gateGain(GateShape s,double x){
         case GateShape::Sine:return static_cast<float>(0.5-0.5*std::cos(2.0*pi*x));
         case GateShape::Exponential:return static_cast<float>(x*x);
         case GateShape::Logarithmic:return static_cast<float>(std::sqrt(x));
+        case GateShape::Custom:return 1.0f;
     }
     return 1.0f;
 }
@@ -192,16 +193,49 @@ void BackReverseEngine::applyGates(std::vector<float>& d,std::size_t channels,co
         if(g.direction==GateDirection::ForceForward)
             for(std::size_t i=0;i<n/2;++i) for(std::size_t ch=0;ch<channels;++ch)
                 std::swap(d[(a+i)*channels+ch],d[(b-1-i)*channels+ch]);
+
+        const double activeEnd=std::clamp<double>(g.width*(1.0-g.gap),0.0,1.0);
+        const double gapStart=std::clamp<double>(1.0-g.gap,activeEnd,1.0);
+        std::vector<float> held(channels,0.0f);
+        for(std::size_t ch=0;ch<channels;++ch) held[ch]=d[a*channels+ch];
+
         for(std::size_t i=0;i<n;++i){
             const double ph=static_cast<double>(i)/std::max<std::size_t>(1,n-1);
-            float gain=g.enabled ? (1.0f-g.depth)+g.depth*gateGain(g.shape,ph) : 0.0f;
-            const double active=std::clamp<double>(g.width,0.0,1.0);
-            if(ph>active) gain=(g.gapMode==GapMode::DryThrough)?1.0f:0.0f;
-            for(std::size_t ch=0;ch<channels;++ch) d[(a+i)*channels+ch]*=gain;
+            double shapePhase=activeEnd>0.0?std::clamp(ph/activeEnd,0.0,1.0):1.0;
+            float shaped;
+            if(g.shape==GateShape::Custom){
+                const double pos=shapePhase*(g.customCurve.size()-1);
+                const auto i0=static_cast<std::size_t>(pos),i1=std::min(i0+1,g.customCurve.size()-1);
+                const float frac=static_cast<float>(pos-i0);
+                shaped=g.customCurve[i0]+(g.customCurve[i1]-g.customCurve[i0])*frac;
+            } else shaped=gateGain(g.shape,shapePhase);
+            float gain=(1.0f-g.depth)+g.depth*shaped;
+
+            if(!g.enabled) gain=0.0f;
+            else if(ph>activeEnd){
+                switch(g.gapMode){
+                    case GapMode::Silence: gain=0.0f; break;
+                    case GapMode::DryThrough: gain=1.0f; break;
+                    case GapMode::HoldPrevious: gain=1.0f; break;
+                    case GapMode::Crossfade:{
+                        const double den=std::max(1.0e-9,1.0-activeEnd);
+                        const double x=std::clamp((ph-activeEnd)/den,0.0,1.0);
+                        gain=static_cast<float>(std::cos(x*pi*0.5));
+                        break;
+                    }
+                    case GapMode::EffectTailOnly: gain=0.0f; break;
+                }
+            }
+
+            for(std::size_t ch=0;ch<channels;++ch){
+                auto& sample=d[(a+i)*channels+ch];
+                if(g.enabled && ph>activeEnd && g.gapMode==GapMode::HoldPrevious) sample=held[ch];
+                else sample*=gain;
+                if(g.enabled && ph<=activeEnd) held[ch]=sample;
+            }
         }
     }
 }
-
 std::vector<float> BackReverseEngine::processFinite(const std::vector<float>& in,std::size_t channels){
     if(in.empty()||channels==0||in.size()%channels) return {};
     const std::size_t frames=in.size()/channels;

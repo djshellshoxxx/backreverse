@@ -49,7 +49,7 @@ BackReverseAudioProcessorEditor::BackReverseAudioProcessorEditor(BackReverseAudi
     addCombo(orderMode,{"Sequential","Reverse Order","Random","Shuffle","Ping Pong","Odds/Evens","Evens/Odds","Rotate Left","Rotate Right","User"});
     addCombo(timeMode,{"Rate","Time Stretch"}); addCombo(polarity,{"Normal","Invert L","Invert R","Invert Both"});
     addCombo(syncDivision,{"1/128","1/64","1/32","1/16T","1/16","1/8T","1/8","1/8.","1/4T","1/4","1/4.","1/2","1 bar","2 bars","4 bars","8 bars","16 bars","32 bars"});
-    addCombo(gateSteps,{"2","4","8","16","32","64"});addCombo(gateShape,{"Hard","Linear In","Linear Out","Triangle","Equal Power","Sine","Exponential","Logarithmic"});
+    addCombo(gateSteps,{"2","4","8","16","32","64"});addCombo(gateShape,{"Hard","Linear In","Linear Out","Triangle","Equal Power","Sine","Exponential","Logarithmic","Custom"});
     addCombo(gapMode,{"Silence","Dry Through","Hold","Crossfade","FX Tail"});
     addCombo(fxOrder,{"Stutter > Delay > Echo","Stutter > Echo > Delay","Delay > Stutter > Echo","Delay > Echo > Stutter","Echo > Stutter > Delay","Echo > Delay > Stutter"});
 

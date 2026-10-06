@@ -143,6 +143,19 @@ int main(){
    auto y=e.processFinite({1,2,3,4},1);
    CHECK("REST token renders silence",y==std::vector<float>({2,1,0,0,4,3}));
  }
+
+ {
+   EngineConfig c; c.sampleRate=8.0; c.channels=1; c.maxChunkFrames=100;
+   BackReverseEngine e(c); ChunkParams p; p.durationSeconds=1.0; GateStep g; g.shape=GateShape::Custom; g.width=1.0f; g.gap=0; g.customCurve={0,0,0,0,1,1,1,1}; p.gates={g};e.setChunkParams(p);
+   auto y=e.processFinite({1,1,1,1,1,1,1,1},1);
+   CHECK("custom gate curve changes amplitude",y.front()<0.1f && y.back()>0.9f);
+ }
+ {
+   EngineConfig c; c.sampleRate=4.0; c.channels=1; c.maxChunkFrames=100;
+   BackReverseEngine e(c); ChunkParams p; p.durationSeconds=1.0; GateStep g; g.width=0.5f;g.gap=0.5f;g.gapMode=GapMode::HoldPrevious;p.gates={g};e.setChunkParams(p);
+   auto y=e.processFinite({1,2,3,4},1);
+   CHECK("hold gap repeats prior gated sample",near(y[2],y[1])&&near(y[3],y[1]));
+ }
  std::cout<<(failures?"TESTS FAILED":"ALL TESTS PASSED")<<"\n";
  return failures?1:0;
 }

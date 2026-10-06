@@ -17,7 +17,7 @@ enum class ReverseMode { SequentialChunks, WholeSource, ReorderedChunks, FreeScr
 enum class TemporalMode { Rate, TimeStretch };
 enum class BoundaryMode { Hard, LinearCrossfade, EqualPowerCrossfade };
 enum class OrderMode { Sequential, ReverseOrder, Random, ShuffleNoRepeat, PingPong, OddsThenEvens, EvensThenOdds, RotateLeft, RotateRight, UserPattern };
-enum class GateShape { Rectangular, LinearIn, LinearOut, Triangle, EqualPower, Sine, Exponential, Logarithmic };
+enum class GateShape { Rectangular, LinearIn, LinearOut, Triangle, EqualPower, Sine, Exponential, Logarithmic, Custom };
 enum class GapMode { Silence, DryThrough, HoldPrevious, Crossfade, EffectTailOnly };
 enum class GateDirection { Inherit, ForceReverse, ForceForward };
 enum class ScratchMode { Linear, Vinyl, TapeShuttle, Fine };
@@ -34,6 +34,7 @@ struct GateStep {
     bool stutter {false};
     bool delay {false};
     bool echo {false};
+    std::array<float,8> customCurve {0.0f,0.15f,0.5f,1.0f,1.0f,0.5f,0.15f,0.0f};
 };
 struct ChunkParams {
     double durationSeconds {5.0};
