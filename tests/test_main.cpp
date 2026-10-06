@@ -156,6 +156,14 @@ int main(){
    auto y=e.processFinite({1,2,3,4},1);
    CHECK("hold gap repeats prior gated sample",near(y[2],y[1])&&near(y[3],y[1]));
  }
+
+ {
+   EngineConfig c; c.sampleRate=8.0;c.channels=1;c.maxChunkFrames=100;
+   BackReverseEngine e(c);ChunkParams p;p.durationSeconds=1.0;GateStep a,b;a.stutter=true;b.stutter=false;p.gates={a,b};p.activeGateCount=2;e.setChunkParams(p);
+   EffectSettings fx;fx.stutter.enabled=true;fx.stutter.periodFrames=2;fx.stutter.repeatFrames=1;fx.stutter.repeats=1;fx.stutter.wet=1;fx.stutter.dry=0;e.setEffects(fx);
+   auto y=e.processFinite({1,2,3,4,5,6,7,8},1);
+   CHECK("per-gate stutter assignment preserves unassigned region",y.size()==8 && std::isfinite(y[7]));
+ }
  std::cout<<(failures?"TESTS FAILED":"ALL TESTS PASSED")<<"\n";
  return failures?1:0;
 }

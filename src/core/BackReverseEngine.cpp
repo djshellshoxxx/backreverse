@@ -79,6 +79,8 @@ void BackReverseEngine::prepare(double sampleRate, std::size_t channels, std::si
     const std::size_t fxFrames = static_cast<std::size_t>(cfg_.sampleRate * 8.0);
     delayBuffer_.assign(std::max<std::size_t>(1, fxFrames*cfg_.channels), 0.0f);
     echoBuffer_.assign(std::max<std::size_t>(1, fxFrames*cfg_.channels), 0.0f);
+    stutterScratch_.assign(cfg_.maxChunkFrames*cfg_.channels,0.0f);
+    fxScratch_.assign(cfg_.maxChunkFrames*cfg_.channels,0.0f);
     reset();
 }
 
@@ -142,7 +144,7 @@ std::vector<float> BackReverseEngine::renderChunk(std::span<const float> in,std:
     if (p.temporalMode==TemporalMode::Rate) out=rateResample(out,channels,p.ratio);
     else out=granularStretch(out,channels,p.ratio,cfg_.sampleRate);
     applyStereoAndPhase(out,channels,p);
-    applyEffects(out,channels);
+    applyEffectsForGates(out,channels,p);
     return out;
 }
 
@@ -298,7 +300,7 @@ void BackReverseEngine::processLive(std::span<const float> in,std::span<float> o
             livePlayback_.resize(wanted*channels);
             applyGates(livePlayback_,channels,chunk_);
             applyStereoAndPhase(livePlayback_,channels,chunk_);
-            applyEffects(livePlayback_,channels);
+            applyEffectsForGates(livePlayback_,channels,chunk_);
             livePlayback_.resize(fullSize);
             captureFrames_=0; playbackFrame_=0; playbackReady_=true;
         } else if(playbackReady_ && playbackFrame_>=wanted) {
