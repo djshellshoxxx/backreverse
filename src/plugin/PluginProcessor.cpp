@@ -92,12 +92,13 @@ void BackReverseAudioProcessor::syncEngineFromParameters(){
     int pol=static_cast<int>(*state.getRawParameterValue("polarity")); params.invertLeft=(pol==1||pol==3);params.invertRight=(pol==2||pol==3);params.phaseDegrees=*state.getRawParameterValue("phase");
 
     const int gateCount=activeGateCount();
-    params.gates.resize(static_cast<std::size_t>(gateCount));
+    if(params.gates.size()!=64) params.gates.assign(64,br::GateStep{});
+    params.activeGateCount=static_cast<std::size_t>(gateCount);
     const auto shape=static_cast<br::GateShape>(std::clamp(static_cast<int>(*state.getRawParameterValue("gateShape")),0,7));
     const auto gapMode=static_cast<br::GapMode>(std::clamp(static_cast<int>(*state.getRawParameterValue("gapMode")),0,4));
     const float width=*state.getRawParameterValue("gateWidth");
     const float gap=*state.getRawParameterValue("gateGap");
-    for(int i=0;i<gateCount;++i){ auto& g=params.gates[(std::size_t)i]; g.enabled=gateMask[(std::size_t)i];g.shape=shape;g.width=width;g.gap=gap;g.gapMode=gapMode;g.direction=gateForward[(std::size_t)i]?br::GateDirection::ForceForward:br::GateDirection::Inherit; }
+    for(int i=0;i<64;++i){ auto& g=params.gates[(std::size_t)i]; g.enabled=(i<gateCount)?gateMask[(std::size_t)i]:false;g.shape=shape;g.width=width;g.gap=gap;g.gapMode=gapMode;g.direction=gateForward[(std::size_t)i]?br::GateDirection::ForceForward:br::GateDirection::Inherit; }
 
     engine.setChunkParams(params);
     engine.setReverseMode(static_cast<br::ReverseMode>(static_cast<int>(*state.getRawParameterValue("reverseMode"))));
