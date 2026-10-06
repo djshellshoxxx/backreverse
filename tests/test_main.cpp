@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -37,6 +38,15 @@ int main(){
    CHECK("fractional chunk rounded to frames", e.latencyFrames()==126);
  }
  {
+   EngineConfig c; c.sampleRate=1000.0; c.channels=1; c.maxChunkFrames=100;
+   BackReverseEngine e(c); ChunkParams p; p.durationSeconds=std::numeric_limits<double>::infinity();
+   p.ratio=std::numeric_limits<double>::quiet_NaN(); p.phaseDegrees=std::numeric_limits<double>::infinity();
+   GateStep gate; gate.width=std::numeric_limits<float>::quiet_NaN(); gate.depth=2.0f;
+   gate.customCurve[0]=std::numeric_limits<float>::infinity(); p.gates={gate}; e.setChunkParams(p);
+   auto y=e.processFinite({1,2,3,4},1); bool finite=true; for(float v:y)finite&=std::isfinite(v);
+   CHECK("invalid parameter values are sanitized", e.latencyFrames()==1 && finite);
+ }
+ {
    EngineConfig c; c.sampleRate=8.0; c.channels=1; c.maxChunkFrames=100;
    BackReverseEngine e(c); ChunkParams p; p.durationSeconds=1.0; p.temporalMode=TemporalMode::Rate; p.ratio=2.0; e.setChunkParams(p);
    auto y=e.processFinite({0,1,2,3,4,5,6,7},1);
@@ -63,7 +73,13 @@ int main(){
    EngineConfig c; c.sampleRate=4.0; c.channels=2; c.maxChunkFrames=100;
    BackReverseEngine e(c); ChunkParams p; p.durationSeconds=1.0; p.swapStereo=true; e.setChunkParams(p);
    auto y=e.processFinite({1,10,2,20,3,30,4,40},2);
-   CHECK("stereo swap occurs", near(y[0],40.0f*std::sqrt(0.5f)) && near(y[1],4.0f*std::sqrt(0.5f)));
+   CHECK("center pan preserves stereo level while swapping", near(y[0],40.0f) && near(y[1],4.0f));
+ }
+ {
+   EngineConfig c; c.sampleRate=4.0; c.channels=2; c.maxChunkFrames=100;
+   BackReverseEngine e(c); ChunkParams p; p.durationSeconds=1.0; e.setChunkParams(p);
+   auto y=e.processFinite({1,10,2,20,3,30,4,40},2);
+   CHECK("center pan preserves stereo input level", near(y[0],4.0f) && near(y[1],40.0f));
  }
  {
    EngineConfig c; c.sampleRate=4.0; c.channels=1; c.maxChunkFrames=100;
@@ -131,6 +147,10 @@ int main(){
  {
    auto p=parseUserPattern("0,+2,REST,1*2",8,42);
    CHECK("pattern DSL absolute relative rest repeat",p==std::vector<int>({0,2,-1,1,1}));
+ }
+ {
+   auto p=parseUserPattern("0 2 REST 1*2",8,42);
+   CHECK("pattern DSL accepts whitespace separators",p==std::vector<int>({0,2,-1,1,1}));
  }
  {
    auto a=parseUserPattern("3@50,4@50,5@50,6@50",8,999);
