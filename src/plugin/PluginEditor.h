@@ -11,6 +11,7 @@ public:
 private:
     void applyAt(juce::Point<int>,const juce::ModifierKeys&);
     BackReverseAudioProcessor& processor;
+    int lastPaintedCell {-1};
 };
 
 class GateCurveEditor final : public juce::Component {
@@ -57,9 +58,9 @@ private:
     juce::TextEditor patternText;
     juce::ComboBox reverseMode,orderMode,timeMode,polarity,syncDivision,gateSteps,gateShape,gapMode,fxOrder,preset,chunkUnit,scratchMode,scratchRelease;
     juce::Slider chunk,ratio,pan,phase,dry,wet,gateWidth,gateGap;
-    juce::Slider stutterWet,stutterDry,stutterDecay,stutterRepeats;
-    juce::Slider delayWet,delayDry,delayFeedback,delayLowpass,delayHighpass;
-    juce::Slider echoWet,echoDry,echoFeedback,echoDamping,echoSpread,echoDrift,echoWow;
+    juce::Slider stutterMs,stutterWet,stutterDry,stutterDecay,stutterRepeats;
+    juce::Slider delayMs,delayWet,delayDry,delayFeedback,delayLowpass,delayHighpass;
+    juce::Slider echoMs,echoWet,echoDry,echoFeedback,echoDamping,echoSpread,echoDrift,echoWow;
     juce::Slider scratchInertia,scratchFriction,scratchMaxRate;
     juce::ToggleButton swap{"Swap L/R"},hostSync{"Host Sync"},stutter{"Stutter"},delay{"Delay"},echo{"Echo"},stutterAlternate{"Alt Stutter"},delayPingPong{"Ping Pong"},scratchReverseOnly{"Rev Only"};
 
