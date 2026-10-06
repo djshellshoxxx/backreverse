@@ -222,6 +222,11 @@ std::vector<float> BackReverseEngine::processFinite(const std::vector<float>& in
     std::vector<float> out;
     out.reserve(in.size()*2);
     for(std::size_t idx:order){
+        if(idx==RestChunk){
+            const std::size_t restFrames=chunkFrames(chunk_);
+            out.insert(out.end(),restFrames*channels,0.0f);
+            continue;
+        }
         if(idx>=slices.size()) continue;
         const auto& s=slices[idx];
         auto rendered=renderChunk(in,channels,s.start,s.end,s.params);
