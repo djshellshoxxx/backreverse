@@ -73,6 +73,7 @@ void BackReverseEngine::prepare(double sampleRate, std::size_t channels, std::si
     cfg_.sampleRate = std::max(1.0, sampleRate);
     cfg_.channels = std::max<std::size_t>(1, channels);
     cfg_.maxChunkFrames = std::max<std::size_t>(1, maxChunkFrames);
+    chunk_.gates.reserve(64);
     liveCapture_.assign(cfg_.maxChunkFrames * cfg_.channels, 0.0f);
     livePlayback_.assign(cfg_.maxChunkFrames * cfg_.channels, 0.0f);
     const std::size_t fxFrames = static_cast<std::size_t>(cfg_.sampleRate * 8.0);
@@ -90,7 +91,8 @@ void BackReverseEngine::reset() {
     rng_.seed(cfg_.randomSeed);
 }
 
-void BackReverseEngine::setChunkParams(ChunkParams p) {
+void BackReverseEngine::setChunkParams(const ChunkParams& input) {
+    ChunkParams p=input;
     p.durationSeconds = std::max(0.001, p.durationSeconds);
     p.ratio = std::clamp(p.ratio, 0.05, 8.0);
     p.pan = std::clamp(p.pan, -1.0f, 1.0f);
@@ -178,7 +180,8 @@ float BackReverseEngine::gateGain(GateShape s,double x){
 
 void BackReverseEngine::applyGates(std::vector<float>& d,std::size_t channels,const ChunkParams& p) const {
     if(p.gates.empty()||d.empty()) return;
-    const std::size_t frames=d.size()/channels, steps=p.gates.size();
+    const std::size_t frames=d.size()/channels;
+    const std::size_t steps=p.activeGateCount?std::min(p.activeGateCount,p.gates.size()):p.gates.size();
     for(std::size_t s=0;s<steps;++s){
         const auto& g=p.gates[s];
         const std::size_t a=s*frames/steps,b=(s+1)*frames/steps,n=std::max<std::size_t>(1,b-a);
