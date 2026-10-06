@@ -63,7 +63,7 @@ enum class EffectType { Stutter, Delay, Echo };
 struct EffectSettings {
     std::array<EffectType,3> chain { EffectType::Stutter, EffectType::Delay, EffectType::Echo };
     struct Stutter { bool enabled {false}; std::size_t periodFrames {2400}; std::size_t repeatFrames {1200}; int repeats {2}; float decay {1.0f}; float wet {1.0f}; float dry {0.0f}; bool alternateDirection {false}; } stutter;
-    struct Delay { bool enabled {false}; std::size_t delayFrames {12000}; float feedback {0.25f}; float wet {0.25f}; float dry {1.0f}; bool pingPong {false}; } delay;
+    struct Delay { bool enabled {false}; std::size_t delayFrames {12000}; float feedback {0.25f}; float wet {0.25f}; float dry {1.0f}; bool pingPong {false}; float lowpassHz {18000.0f}; float highpassHz {20.0f}; } delay;
     struct Echo { bool enabled {false}; std::size_t delayFrames {18000}; float feedback {0.35f}; float damping {0.2f}; float spread {0.0f}; float drift {0.0f}; float wowFlutter {0.0f}; float wet {0.25f}; float dry {1.0f}; } echo;
 };
 struct ScratchState { ScratchMode mode {ScratchMode::Vinyl}; ReleaseMode release {ReleaseMode::Continue}; double positionFrames {0.0}; double velocity {0.0}; double inertia {0.85}; double friction {0.1}; double maxRate {8.0}; bool reverseOnly {false}; };
@@ -93,6 +93,7 @@ private:
     std::vector<float> liveCapture_,livePlayback_; std::size_t captureFrames_ {0},playbackFrame_ {0}; bool playbackReady_ {false};
     std::vector<float> delayBuffer_; std::size_t delayWrite_ {0}; std::vector<float> echoBuffer_; std::size_t echoWrite_ {0};
     std::vector<float> stutterScratch_,fxScratch_,fxBeforeScratch_;
+    std::array<float,64> delayLp_{},delayHpIn_{},delayHpOut_{},echoLp_{};
     std::size_t chunkFrames(const ChunkParams& p) const; std::vector<std::size_t> makeOrder(std::size_t chunkCount);
     std::vector<float> renderChunk(std::span<const float>,std::size_t,std::size_t,std::size_t,const ChunkParams&);
     void applyStereoAndPhase(std::vector<float>&,std::size_t,const ChunkParams&) const;

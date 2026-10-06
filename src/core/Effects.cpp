@@ -28,27 +28,35 @@ void BackReverseEngine::processStutter(std::vector<float>& d,std::size_t channel
 void BackReverseEngine::processDelay(std::vector<float>& d,std::size_t channels){
     if(!fx_.delay.enabled||delayBuffer_.empty()||d.empty())return;
     const std::size_t capFrames=delayBuffer_.size()/channels;const std::size_t df=std::clamp<std::size_t>(fx_.delay.delayFrames,1,capFrames-1);
+    const float lpHz=std::clamp(fx_.delay.lowpassHz,20.0f,(float)cfg_.sampleRate*0.49f);
+    const float hpHz=std::clamp(fx_.delay.highpassHz,5.0f,lpHz);
+    const float lpA=1.0f-std::exp(-2.0f*3.14159265359f*lpHz/(float)cfg_.sampleRate);
+    const float hpA=std::exp(-2.0f*3.14159265359f*hpHz/(float)cfg_.sampleRate);
     for(std::size_t f=0;f<d.size()/channels;++f){
         for(std::size_t ch=0;ch<channels;++ch){
             const std::size_t writeFrame=delayWrite_%capFrames,readFrame=(writeFrame+capFrames-df)%capFrames;
             const std::size_t readCh=(fx_.delay.pingPong&&channels>1)?(channels-1-ch):ch;
-            const float delayed=delayBuffer_[readFrame*channels+readCh],x=d[f*channels+ch];
+            float delayed=delayBuffer_[readFrame*channels+readCh];
+            if(ch<delayLp_.size()){
+                delayLp_[ch]+=lpA*(delayed-delayLp_[ch]);
+                const float hp=hpA*(delayHpOut_[ch]+delayLp_[ch]-delayHpIn_[ch]);
+                delayHpIn_[ch]=delayLp_[ch];delayHpOut_[ch]=hp;delayed=hp;
+            }
+            const float x=d[f*channels+ch];
             delayBuffer_[writeFrame*channels+ch]=std::clamp(x+delayed*std::clamp(fx_.delay.feedback,-0.99f,0.99f),-8.0f,8.0f);
             d[f*channels+ch]=fx_.delay.dry*x+fx_.delay.wet*delayed;
         }++delayWrite_;
     }
 }
-
 void BackReverseEngine::processEcho(std::vector<float>& d,std::size_t channels){
     if(!fx_.echo.enabled||echoBuffer_.empty()||d.empty())return;
     const std::size_t capFrames=echoBuffer_.size()/channels;const std::size_t ef=std::clamp<std::size_t>(fx_.echo.delayFrames,1,capFrames-1);
-    std::array<float,64> lp{};
     const float damp=std::clamp(fx_.echo.damping,0.0f,0.999f);
     for(std::size_t f=0;f<d.size()/channels;++f){
         for(std::size_t ch=0;ch<channels;++ch){
             const std::size_t writeFrame=echoWrite_%capFrames,readFrame=(writeFrame+capFrames-ef)%capFrames;
             float delayed=echoBuffer_[readFrame*channels+ch];
-            if(ch<lp.size()){lp[ch]+=(delayed-lp[ch])*(1.0f-damp);delayed=lp[ch];}
+            if(ch<echoLp_.size()){echoLp_[ch]+=(delayed-echoLp_[ch])*(1.0f-damp);delayed=echoLp_[ch];}
             const float x=d[f*channels+ch];
             const float wow=1.0f+fx_.echo.wowFlutter*0.005f*std::sin(static_cast<float>(echoWrite_)*0.0021f);
             const float drift=1.0f+fx_.echo.drift*0.01f*std::sin(static_cast<float>(echoWrite_)*0.00037f);

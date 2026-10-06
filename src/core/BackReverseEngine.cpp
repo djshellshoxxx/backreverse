@@ -90,6 +90,7 @@ void BackReverseEngine::reset() {
     std::fill(livePlayback_.begin(), livePlayback_.end(), 0.0f);
     std::fill(delayBuffer_.begin(), delayBuffer_.end(), 0.0f);
     std::fill(echoBuffer_.begin(), echoBuffer_.end(), 0.0f);
+    delayLp_.fill(0.0f);delayHpIn_.fill(0.0f);delayHpOut_.fill(0.0f);echoLp_.fill(0.0f);
     captureFrames_=0; playbackFrame_=0; playbackReady_=false; delayWrite_=0; echoWrite_=0;
     rng_.seed(cfg_.randomSeed);
 }
