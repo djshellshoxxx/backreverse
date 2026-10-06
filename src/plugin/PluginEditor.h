@@ -13,6 +13,17 @@ private:
     BackReverseAudioProcessor& processor;
 };
 
+class GateCurveEditor final : public juce::Component {
+public:
+    explicit GateCurveEditor(BackReverseAudioProcessor& p):processor(p){}
+    void paint(juce::Graphics&) override;
+    void mouseDown(const juce::MouseEvent&) override;
+    void mouseDrag(const juce::MouseEvent&) override;
+private:
+    void edit(const juce::MouseEvent&);
+    BackReverseAudioProcessor& processor;
+};
+
 class WaveformView final : public juce::Component {
 public:
     explicit WaveformView(BackReverseAudioProcessor& p):processor(p){}
@@ -35,10 +46,11 @@ private:
     void configureSlider(juce::Slider&,const juce::String&);
     BackReverseAudioProcessor& p;
     GateGrid gateGrid;
+    GateCurveEditor gateCurve;
     WaveformView waveform;
 
     juce::Label title,status,latencyLabel;
-    juce::TextButton load{"Load Audio"},play{"Pause"},random{"Randomize"},help{"Help"};
+    juce::TextButton load{"Load Audio"},play{"Pause"},random{"Randomize"},help{"Help"},undo{"Undo"},redo{"Redo"};
     juce::TextEditor patternText;
     juce::ComboBox reverseMode,orderMode,timeMode,polarity,syncDivision,gateSteps,gateShape,gapMode,fxOrder;
     juce::Slider chunk,ratio,pan,phase,dry,wet,gateWidth,gateGap;

@@ -28,6 +28,7 @@ public:
     void getStateInformation(juce::MemoryBlock&) override;
     void setStateInformation(const void*, int) override;
     static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout();
+    juce::UndoManager undoManager;
     juce::AudioProcessorValueTreeState state;
 
     bool loadAudioFile(const juce::File&);
@@ -46,6 +47,8 @@ public:
     bool gateForwardState(int index) const;
     void setGateEffect(int index,br::EffectType effect,bool enabled);
     bool gateEffectState(int index,br::EffectType effect) const;
+    void setGateCurvePoint(int index,float value);
+    float gateCurvePoint(int index) const;
     int activeGateCount() const;
     void randomize(std::uint64_t seed);
     void setUserPatternText(const juce::String& text);

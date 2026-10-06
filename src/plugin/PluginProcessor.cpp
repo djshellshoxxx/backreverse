@@ -11,7 +11,7 @@ juce::NormalisableRange<float> skewed(float lo,float hi,float centre){ juce::Nor
 
 BackReverseAudioProcessor::BackReverseAudioProcessor()
 : AudioProcessor(BusesProperties().withInput("Input",juce::AudioChannelSet::stereo(),true).withOutput("Output",juce::AudioChannelSet::stereo(),true)),
-  state(*this,nullptr,"STATE",makeLayout()), engine(br::EngineConfig{}) {
+  state(*this,&undoManager,"STATE",makeLayout()), engine(br::EngineConfig{}) {
     formatManager.registerBasicFormats();
     gateMask.assign(64,true); gateForward.assign(64,false);
     gateStutter.assign(64,false); gateDelay.assign(64,false); gateEcho.assign(64,false);
@@ -101,7 +101,8 @@ void BackReverseAudioProcessor::syncEngineFromParameters(){
     const float width=*state.getRawParameterValue("gateWidth");
     const float gap=*state.getRawParameterValue("gateGap");
     for(int i=0;i<64;++i){ auto& g=params.gates[(std::size_t)i]; g.enabled=(i<gateCount)?gateMask[(std::size_t)i]:false;g.shape=shape;g.width=width;g.gap=gap;g.gapMode=gapMode;g.direction=gateForward[(std::size_t)i]?br::GateDirection::ForceForward:br::GateDirection::Inherit;
-        g.stutter=gateStutter[(std::size_t)i]; g.delay=gateDelay[(std::size_t)i]; g.echo=gateEcho[(std::size_t)i]; }
+        g.stutter=gateStutter[(std::size_t)i]; g.delay=gateDelay[(std::size_t)i]; g.echo=gateEcho[(std::size_t)i];
+        for(int k=0;k<8;++k)g.customCurve[(std::size_t)k]=(float)state.state.getProperty("curve"+juce::String(k),g.customCurve[(std::size_t)k]); }
 
     engine.setChunkParams(params);
     engine.setReverseMode(static_cast<br::ReverseMode>(static_cast<int>(*state.getRawParameterValue("reverseMode"))));
@@ -187,6 +188,9 @@ void BackReverseAudioProcessor::setGateEffect(int i,br::EffectType effect,bool e
     else if(effect==br::EffectType::Delay){gateDelay[idx]=enabled;state.state.setProperty("gateDelay"+juce::String(i),enabled,nullptr);}
     else {gateEcho[idx]=enabled;state.state.setProperty("gateEcho"+juce::String(i),enabled,nullptr);}
 }
+void BackReverseAudioProcessor::setGateCurvePoint(int i,float value){if(i<0||i>=8)return;state.state.setProperty("curve"+juce::String(i),juce::jlimit(0.0f,1.0f,value),&undoManager);}
+float BackReverseAudioProcessor::gateCurvePoint(int i)const{static constexpr float d[]={0,0.15f,0.5f,1,1,0.5f,0.15f,0};if(i<0||i>=8)return 0;return (float)state.state.getProperty("curve"+juce::String(i),d[i]);}
+
 bool BackReverseAudioProcessor::gateEffectState(int i,br::EffectType effect)const{
     if(i<0||i>=64)return false;auto idx=(std::size_t)i;
     if(effect==br::EffectType::Stutter)return gateStutter[idx];

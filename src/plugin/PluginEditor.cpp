@@ -30,6 +30,19 @@ void GateGrid::applyAt(juce::Point<int> p,const juce::ModifierKeys& mods){
 void GateGrid::mouseDown(const juce::MouseEvent& ev){applyAt(ev.getPosition(),ev.mods);}
 void GateGrid::mouseDrag(const juce::MouseEvent& ev){applyAt(ev.getPosition(),ev.mods);}
 
+void GateCurveEditor::paint(juce::Graphics& g){
+    auto r=getLocalBounds().toFloat().reduced(4);g.setColour(juce::Colour(0xff080b10));g.fillRoundedRectangle(r,4);
+    juce::Path p;for(int i=0;i<8;++i){float x=r.getX()+r.getWidth()*i/7.0f;float y=r.getBottom()-r.getHeight()*processor.gateCurvePoint(i);if(i==0)p.startNewSubPath(x,y);else p.lineTo(x,y);}
+    g.setColour(juce::Colour(0xffffc857));g.strokePath(p,juce::PathStrokeType(2));
+    for(int i=0;i<8;++i){float x=r.getX()+r.getWidth()*i/7.0f;float y=r.getBottom()-r.getHeight()*processor.gateCurvePoint(i);g.fillEllipse(x-3,y-3,6,6);}
+}
+void GateCurveEditor::edit(const juce::MouseEvent& ev){
+    auto r=getLocalBounds().toFloat().reduced(4);int i=juce::jlimit(0,7,(int)std::lround((ev.position.x-r.getX())/std::max(1.0f,r.getWidth())*7.0f));
+    float v=1.0f-(ev.position.y-r.getY())/std::max(1.0f,r.getHeight());processor.setGateCurvePoint(i,juce::jlimit(0.0f,1.0f,v));repaint();
+}
+void GateCurveEditor::mouseDown(const juce::MouseEvent& ev){edit(ev);}
+void GateCurveEditor::mouseDrag(const juce::MouseEvent& ev){edit(ev);}
+
 void WaveformView::paint(juce::Graphics& g){
     auto r=getLocalBounds().toFloat();g.setColour(juce::Colour(0xff080b10));g.fillRoundedRectangle(r,5);
     auto peaks=processor.getWaveformPeaks(); if(!peaks.empty()){
@@ -46,11 +59,12 @@ void WaveformView::mouseDown(const juce::MouseEvent& e){seek(e);}
 void WaveformView::mouseDrag(const juce::MouseEvent& e){seek(e);}
 
 BackReverseAudioProcessorEditor::BackReverseAudioProcessorEditor(BackReverseAudioProcessor& proc)
-:AudioProcessorEditor(&proc),p(proc),gateGrid(proc),waveform(proc){
+:AudioProcessorEditor(&proc),p(proc),gateGrid(proc),gateCurve(proc),waveform(proc){
     setResizable(true,true); setResizeLimits(820,620,1600,1100); setSize(1120,820);
     title.setText("BACKREVERSE",juce::dontSendNotification); title.setFont(juce::Font(28.0f,juce::Font::bold)); addAndMakeVisible(title);
     status.setText("reverse / cut / stretch / scratch",juce::dontSendNotification); addAndMakeVisible(status); addAndMakeVisible(latencyLabel);
-    addAndMakeVisible(gateGrid);addAndMakeVisible(waveform);
+    addAndMakeVisible(gateGrid);addAndMakeVisible(gateCurve);addAndMakeVisible(waveform);
+    gateCurve.setTooltip("Custom gate envelope: drag the eight control points. Select Custom gate shape to use it.");
     gateGrid.setTooltip("Gate grid: click on/off, right-click forward, Shift=Stutter, Ctrl/Cmd=Delay, Alt=Echo.");
 
     auto addCombo=[this](juce::ComboBox& b,std::initializer_list<const char*> xs){int i=1;for(auto* x:xs)b.addItem(x,i++);addAndMakeVisible(b);};
@@ -67,7 +81,9 @@ BackReverseAudioProcessorEditor::BackReverseAudioProcessorEditor(BackReverseAudi
     configureSlider(gateWidth,"Gate active width");configureSlider(gateGap,"Gate gap proportion");
     for(auto* b:{&swap,&hostSync,&stutter,&delay,&echo}) addAndMakeVisible(*b);
 
-    addAndMakeVisible(load);addAndMakeVisible(play);addAndMakeVisible(random);addAndMakeVisible(help);
+    addAndMakeVisible(load);addAndMakeVisible(play);addAndMakeVisible(random);addAndMakeVisible(help);addAndMakeVisible(undo);addAndMakeVisible(redo);
+    undo.onClick=[this]{p.undoManager.undo();gateGrid.repaint();gateCurve.repaint();};
+    redo.onClick=[this]{p.undoManager.redo();gateGrid.repaint();gateCurve.repaint();};
     patternText.setTextToShowWhenEmpty("User pattern: 0,+2,REST,1*2,4@50",juce::Colour(0xff687384));
     patternText.setText(p.userPatternText(),false);
     patternText.setTooltip("Advanced chunk pattern: absolute/relative references, REST, *repeat and @probability");
@@ -99,16 +115,16 @@ void BackReverseAudioProcessorEditor::paint(juce::Graphics& g){
 }
 void BackReverseAudioProcessorEditor::resized(){
     auto r=getLocalBounds().reduced(22);auto top=r.removeFromTop(48);title.setBounds(top.removeFromLeft(230));status.setBounds(top.removeFromLeft(290));latencyLabel.setBounds(top.removeFromLeft(250));
-    auto actions=r.removeFromTop(34);load.setBounds(actions.removeFromLeft(105));play.setBounds(actions.removeFromLeft(75));random.setBounds(actions.removeFromLeft(105));help.setBounds(actions.removeFromLeft(70));hostSync.setBounds(actions.removeFromLeft(100));syncDivision.setBounds(actions.removeFromLeft(100));
+    auto actions=r.removeFromTop(34);load.setBounds(actions.removeFromLeft(105));play.setBounds(actions.removeFromLeft(75));random.setBounds(actions.removeFromLeft(105));undo.setBounds(actions.removeFromLeft(65));redo.setBounds(actions.removeFromLeft(65));help.setBounds(actions.removeFromLeft(70));hostSync.setBounds(actions.removeFromLeft(100));syncDivision.setBounds(actions.removeFromLeft(100));
     r.removeFromTop(8);waveform.setBounds(r.removeFromTop(130));
     r.removeFromTop(5);patternText.setBounds(r.removeFromTop(30));
     auto combos=r.removeFromTop(38);reverseMode.setBounds(combos.removeFromLeft(145).reduced(3));orderMode.setBounds(combos.removeFromLeft(145).reduced(3));timeMode.setBounds(combos.removeFromLeft(130).reduced(3));polarity.setBounds(combos.removeFromLeft(120).reduced(3));fxOrder.setBounds(combos.reduced(3));
     auto knobs=r.removeFromTop(138);const int kw=knobs.getWidth()/8;for(auto* s:{&chunk,&ratio,&pan,&phase,&dry,&wet,&gateWidth,&gateGap})s->setBounds(knobs.removeFromLeft(kw).reduced(4));
     auto gateCtl=r.removeFromTop(34);gateSteps.setBounds(gateCtl.removeFromLeft(90).reduced(2));gateShape.setBounds(gateCtl.removeFromLeft(130).reduced(2));gapMode.setBounds(gateCtl.removeFromLeft(115).reduced(2));swap.setBounds(gateCtl.removeFromLeft(105));stutter.setBounds(gateCtl.removeFromLeft(85));delay.setBounds(gateCtl.removeFromLeft(75));echo.setBounds(gateCtl.removeFromLeft(75));
-    r.removeFromTop(6);gateGrid.setBounds(r.removeFromTop(190));
+    r.removeFromTop(6);auto gateArea=r.removeFromTop(190);gateGrid.setBounds(gateArea.removeFromTop(135));gateCurve.setBounds(gateArea.reduced(0,4));
 }
 void BackReverseAudioProcessorEditor::timerCallback(){
     const double sec=*p.state.getRawParameterValue("chunkSeconds");
     latencyLabel.setText("buffer "+juce::String(sec,3)+" s / "+juce::String((int)std::round(sec*p.getSampleRate()))+" samples",juce::dontSendNotification);
-    waveform.repaint();gateGrid.repaint();
+    waveform.repaint();gateGrid.repaint();gateCurve.repaint();
 }
