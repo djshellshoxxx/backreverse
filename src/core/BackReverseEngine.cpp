@@ -202,30 +202,30 @@ std::vector<float> BackReverseEngine::processFinite(const std::vector<float>& in
         ChunkParams p=chunk_; p.durationSeconds=static_cast<double>(frames)/cfg_.sampleRate;
         return renderChunk(in,channels,0,frames,p);
     }
-    const std::size_t base=chunkFrames(chunk_);
-    const std::size_t count=(frames+base-1)/base;
-    auto order=makeOrder(count);
+
+    struct Slice { std::size_t start; std::size_t end; ChunkParams params; };
+    std::vector<Slice> slices;
+    std::size_t cursor=0, sequenceIndex=0;
+    while(cursor<frames){
+        const ChunkParams p=pattern_.empty()?chunk_:pattern_[sequenceIndex%pattern_.size()];
+        const std::size_t len=chunkFrames(p);
+        const std::size_t endFrame=std::min(frames,cursor+len);
+        slices.push_back({cursor,endFrame,p});
+        cursor=endFrame;
+        ++sequenceIndex;
+    }
+
+    auto order=makeOrder(slices.size());
     std::vector<float> out;
     out.reserve(in.size()*2);
-    std::size_t seq=0;
     for(std::size_t idx:order){
-        ChunkParams p=pattern_.empty()?chunk_:pattern_[seq%pattern_.size()];
-        const std::size_t cf=chunkFrames(p);
-        std::size_t start;
-        if(pattern_.empty()) start=idx*base;
-        else {
-            // Mixed-size patterns are chronological; order index selects pattern slots on the base grid.
-            start=idx*base;
-        }
-        if(start>=frames){++seq;continue;}
-        const std::size_t end=std::min(frames,start+cf);
-        auto rendered=renderChunk(in,channels,start,end,p);
+        if(idx>=slices.size()) continue;
+        const auto& s=slices[idx];
+        auto rendered=renderChunk(in,channels,s.start,s.end,s.params);
         out.insert(out.end(),rendered.begin(),rendered.end());
-        ++seq;
     }
     return out;
 }
-
 void BackReverseEngine::processLive(std::span<const float> in,std::span<float> out){
     const std::size_t channels=cfg_.channels;
     if(channels==0||in.size()!=out.size()||in.size()%channels){ std::fill(out.begin(),out.end(),0.0f); return; }
