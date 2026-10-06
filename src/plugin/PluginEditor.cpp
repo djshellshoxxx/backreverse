@@ -79,7 +79,10 @@ BackReverseAudioProcessorEditor::BackReverseAudioProcessorEditor(BackReverseAudi
     configureSlider(chunk,"Chunk length in seconds. Live reverse latency follows this value.");configureSlider(ratio,"Rate/stretch ratio: 0.25 quarter, 0.5 half, 2 double, 3 triple.");
     configureSlider(pan,"Stereo pan");configureSlider(phase,"Frequency-dependent all-pass phase rotation");configureSlider(dry,"Dry level");configureSlider(wet,"Processed level");
     configureSlider(gateWidth,"Gate active width");configureSlider(gateGap,"Gate gap proportion");
-    for(auto* b:{&swap,&hostSync,&stutter,&delay,&echo}) addAndMakeVisible(*b);
+    configureSlider(stutterWet,"Stut Wet");configureSlider(stutterDry,"Stut Dry");configureSlider(stutterDecay,"Stut Decay");configureSlider(stutterRepeats,"Stut Repeats");
+    configureSlider(delayWet,"Delay Wet");configureSlider(delayDry,"Delay Dry");configureSlider(delayFeedback,"Delay Feedback");configureSlider(delayLowpass,"Delay LP");configureSlider(delayHighpass,"Delay HP");
+    configureSlider(echoWet,"Echo Wet");configureSlider(echoDry,"Echo Dry");configureSlider(echoFeedback,"Echo Feedback");configureSlider(echoDamping,"Echo Damping");configureSlider(echoSpread,"Echo Spread");configureSlider(echoDrift,"Echo Drift");configureSlider(echoWow,"Echo Wow");
+    for(auto* b:{&swap,&hostSync,&stutter,&delay,&echo,&stutterAlternate,&delayPingPong}) addAndMakeVisible(*b);
 
     addAndMakeVisible(load);addAndMakeVisible(play);addAndMakeVisible(random);addAndMakeVisible(help);addAndMakeVisible(undo);addAndMakeVisible(redo);
     undo.onClick=[this]{p.undoManager.undo();gateGrid.repaint();gateCurve.repaint();};
@@ -100,8 +103,11 @@ BackReverseAudioProcessorEditor::BackReverseAudioProcessorEditor(BackReverseAudi
     auto& s=p.state;
     auto SAadd=[&](const char* id,juce::Slider& sl){sas.emplace_back(std::make_unique<SA>(s,id,sl));};
     SAadd("chunkSeconds",chunk);SAadd("ratio",ratio);SAadd("pan",pan);SAadd("phase",phase);SAadd("dry",dry);SAadd("wet",wet);SAadd("gateWidth",gateWidth);SAadd("gateGap",gateGap);
+    SAadd("stutterWet",stutterWet);SAadd("stutterDry",stutterDry);SAadd("stutterDecay",stutterDecay);SAadd("stutterRepeats",stutterRepeats);
+    SAadd("delayWet",delayWet);SAadd("delayDry",delayDry);SAadd("delayFeedback",delayFeedback);SAadd("delayLowpass",delayLowpass);SAadd("delayHighpass",delayHighpass);
+    SAadd("echoWet",echoWet);SAadd("echoDry",echoDry);SAadd("echoFeedback",echoFeedback);SAadd("echoDamping",echoDamping);SAadd("echoSpread",echoSpread);SAadd("echoDrift",echoDrift);SAadd("echoWow",echoWow);
     auto BAadd=[&](const char* id,juce::Button& b){bas.emplace_back(std::make_unique<BA>(s,id,b));};
-    BAadd("swapStereo",swap);BAadd("hostSync",hostSync);BAadd("stutterOn",stutter);BAadd("delayOn",delay);BAadd("echoOn",echo);
+    BAadd("swapStereo",swap);BAadd("hostSync",hostSync);BAadd("stutterOn",stutter);BAadd("delayOn",delay);BAadd("echoOn",echo);BAadd("stutterAlternate",stutterAlternate);BAadd("delayPingPong",delayPingPong);
     auto CAadd=[&](const char* id,juce::ComboBox& b){cas.emplace_back(std::make_unique<CA>(s,id,b));};
     CAadd("reverseMode",reverseMode);CAadd("orderMode",orderMode);CAadd("temporalMode",timeMode);CAadd("polarity",polarity);CAadd("syncDivision",syncDivision);CAadd("gateSteps",gateSteps);CAadd("gateShape",gateShape);CAadd("gapMode",gapMode);CAadd("fxOrder",fxOrder);
     startTimerHz(20);
@@ -111,7 +117,12 @@ void BackReverseAudioProcessorEditor::configureSlider(juce::Slider& s,const juce
 void BackReverseAudioProcessorEditor::paint(juce::Graphics& g){
     g.fillAll(juce::Colour(0xff0b0e13));g.setColour(juce::Colour(0xff141b24));g.fillRoundedRectangle(getLocalBounds().toFloat().reduced(12),12);
     g.setColour(juce::Colour(0xff3ed6c6));g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(12),12,1.5f);
-    g.setColour(juce::Colour(0xff8b95a5));g.setFont(12);g.drawText("Gate: click on/off • right=F • Shift=S • Ctrl=Delay • Alt=Echo • waveform drag=scratch",20,getHeight()-30,getWidth()-40,18,juce::Justification::centred);
+    g.setColour(juce::Colour(0xff8b95a5));g.setFont(11);
+    auto label=[&](juce::Slider& s,const char* txt){auto b=s.getBounds();g.drawFittedText(txt,b.getX(),b.getY()-13,b.getWidth(),13,juce::Justification::centred,1);};
+    label(stutterWet,"St W");label(stutterDry,"St D");label(stutterDecay,"St Dec");label(stutterRepeats,"St Rep");
+    label(delayWet,"Dl W");label(delayDry,"Dl D");label(delayFeedback,"Dl Fbk");label(delayLowpass,"Dl LP");label(delayHighpass,"Dl HP");
+    label(echoWet,"Ec W");label(echoDry,"Ec D");label(echoFeedback,"Ec Fbk");label(echoDamping,"Ec Damp");label(echoSpread,"Ec Spr");label(echoDrift,"Ec Drift");label(echoWow,"Ec Wow");
+    g.drawText("Gate: click on/off • right=F • Shift=S • Ctrl=Delay • Alt=Echo • waveform drag=scratch",20,getHeight()-25,getWidth()-40,16,juce::Justification::centred);
 }
 void BackReverseAudioProcessorEditor::resized(){
     auto r=getLocalBounds().reduced(22);auto top=r.removeFromTop(48);title.setBounds(top.removeFromLeft(230));status.setBounds(top.removeFromLeft(290));latencyLabel.setBounds(top.removeFromLeft(250));
@@ -121,7 +132,13 @@ void BackReverseAudioProcessorEditor::resized(){
     auto combos=r.removeFromTop(38);reverseMode.setBounds(combos.removeFromLeft(145).reduced(3));orderMode.setBounds(combos.removeFromLeft(145).reduced(3));timeMode.setBounds(combos.removeFromLeft(130).reduced(3));polarity.setBounds(combos.removeFromLeft(120).reduced(3));fxOrder.setBounds(combos.reduced(3));
     auto knobs=r.removeFromTop(138);const int kw=knobs.getWidth()/8;for(auto* s:{&chunk,&ratio,&pan,&phase,&dry,&wet,&gateWidth,&gateGap})s->setBounds(knobs.removeFromLeft(kw).reduced(4));
     auto gateCtl=r.removeFromTop(34);gateSteps.setBounds(gateCtl.removeFromLeft(90).reduced(2));gateShape.setBounds(gateCtl.removeFromLeft(130).reduced(2));gapMode.setBounds(gateCtl.removeFromLeft(115).reduced(2));swap.setBounds(gateCtl.removeFromLeft(105));stutter.setBounds(gateCtl.removeFromLeft(85));delay.setBounds(gateCtl.removeFromLeft(75));echo.setBounds(gateCtl.removeFromLeft(75));
-    r.removeFromTop(6);auto gateArea=r.removeFromTop(190);gateGrid.setBounds(gateArea.removeFromTop(135));gateCurve.setBounds(gateArea.reduced(0,4));
+    r.removeFromTop(6);
+    auto fx1=r.removeFromTop(95);const int fxw=fx1.getWidth()/9;
+    for(auto* s:{&stutterWet,&stutterDry,&stutterDecay,&stutterRepeats,&delayWet,&delayDry,&delayFeedback,&delayLowpass,&delayHighpass})s->setBounds(fx1.removeFromLeft(fxw).reduced(3,8));
+    auto fx2=r.removeFromTop(95);const int exw=fx2.getWidth()/9;
+    for(auto* s:{&echoWet,&echoDry,&echoFeedback,&echoDamping,&echoSpread,&echoDrift,&echoWow})s->setBounds(fx2.removeFromLeft(exw).reduced(3,8));
+    stutterAlternate.setBounds(fx2.removeFromLeft(90));delayPingPong.setBounds(fx2.removeFromLeft(90));
+    auto gateArea=r.removeFromTop(190);gateGrid.setBounds(gateArea.removeFromTop(135));gateCurve.setBounds(gateArea.reduced(0,4));
 }
 void BackReverseAudioProcessorEditor::timerCallback(){
     const double sec=*p.state.getRawParameterValue("chunkSeconds");

@@ -54,7 +54,10 @@ private:
     juce::TextEditor patternText;
     juce::ComboBox reverseMode,orderMode,timeMode,polarity,syncDivision,gateSteps,gateShape,gapMode,fxOrder;
     juce::Slider chunk,ratio,pan,phase,dry,wet,gateWidth,gateGap;
-    juce::ToggleButton swap{"Swap L/R"},hostSync{"Host Sync"},stutter{"Stutter"},delay{"Delay"},echo{"Echo"};
+    juce::Slider stutterWet,stutterDry,stutterDecay,stutterRepeats;
+    juce::Slider delayWet,delayDry,delayFeedback,delayLowpass,delayHighpass;
+    juce::Slider echoWet,echoDry,echoFeedback,echoDamping,echoSpread,echoDrift,echoWow;
+    juce::ToggleButton swap{"Swap L/R"},hostSync{"Host Sync"},stutter{"Stutter"},delay{"Delay"},echo{"Echo"},stutterAlternate{"Alt Stutter"},delayPingPong{"Ping Pong"};
 
     using SA=juce::AudioProcessorValueTreeState::SliderAttachment;
     using BA=juce::AudioProcessorValueTreeState::ButtonAttachment;

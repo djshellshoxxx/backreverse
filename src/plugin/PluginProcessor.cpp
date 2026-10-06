@@ -43,15 +43,27 @@ juce::AudioProcessorValueTreeState::ParameterLayout BackReverseAudioProcessor::m
     p.push_back(std::make_unique<juce::AudioParameterBool>("stutterOn","Stutter",false));
     p.push_back(std::make_unique<juce::AudioParameterFloat>("stutterMs","Stutter Period",10.0f,1000.0f,120.0f));
     p.push_back(std::make_unique<juce::AudioParameterFloat>("stutterWet","Stutter Wet",0.0f,1.0f,0.7f));
+    p.push_back(std::make_unique<juce::AudioParameterFloat>("stutterDry","Stutter Dry",0.0f,1.0f,0.3f));
+    p.push_back(std::make_unique<juce::AudioParameterInt>("stutterRepeats","Stutter Repeats",1,16,2));
+    p.push_back(std::make_unique<juce::AudioParameterFloat>("stutterDecay","Stutter Decay",0.0f,1.5f,1.0f));
+    p.push_back(std::make_unique<juce::AudioParameterBool>("stutterAlternate","Stutter Alternate",true));
     p.push_back(std::make_unique<juce::AudioParameterBool>("delayOn","Delay",false));
     p.push_back(std::make_unique<juce::AudioParameterFloat>("delayMs","Delay Time",1.0f,2000.0f,250.0f));
     p.push_back(std::make_unique<juce::AudioParameterFloat>("delayFeedback","Delay Feedback",-0.95f,0.95f,0.25f));
     p.push_back(std::make_unique<juce::AudioParameterFloat>("delayWet","Delay Wet",0.0f,1.0f,0.25f));
+    p.push_back(std::make_unique<juce::AudioParameterFloat>("delayDry","Delay Dry",0.0f,1.0f,1.0f));
+    p.push_back(std::make_unique<juce::AudioParameterBool>("delayPingPong","Delay Ping Pong",true));
+    p.push_back(std::make_unique<juce::AudioParameterFloat>("delayLowpass","Delay Lowpass",skewed(100.0f,20000.0f,8000.0f),18000.0f));
+    p.push_back(std::make_unique<juce::AudioParameterFloat>("delayHighpass","Delay Highpass",skewed(5.0f,5000.0f,200.0f),20.0f));
     p.push_back(std::make_unique<juce::AudioParameterBool>("echoOn","Echo",false));
     p.push_back(std::make_unique<juce::AudioParameterFloat>("echoMs","Echo Time",10.0f,4000.0f,375.0f));
     p.push_back(std::make_unique<juce::AudioParameterFloat>("echoFeedback","Echo Feedback",-0.95f,0.95f,0.35f));
     p.push_back(std::make_unique<juce::AudioParameterFloat>("echoDamping","Echo Damping",0.0f,0.99f,0.2f));
     p.push_back(std::make_unique<juce::AudioParameterFloat>("echoWet","Echo Wet",0.0f,1.0f,0.25f));
+    p.push_back(std::make_unique<juce::AudioParameterFloat>("echoDry","Echo Dry",0.0f,1.0f,1.0f));
+    p.push_back(std::make_unique<juce::AudioParameterFloat>("echoSpread","Echo Spread",-1.0f,1.0f,0.0f));
+    p.push_back(std::make_unique<juce::AudioParameterFloat>("echoDrift","Echo Drift",0.0f,1.0f,0.35f));
+    p.push_back(std::make_unique<juce::AudioParameterFloat>("echoWow","Echo Wow Flutter",0.0f,1.0f,0.25f));
     p.push_back(std::make_unique<juce::AudioParameterChoice>("fxOrder","FX Order",juce::StringArray{"Stutter > Delay > Echo","Stutter > Echo > Delay","Delay > Stutter > Echo","Delay > Echo > Stutter","Echo > Stutter > Delay","Echo > Delay > Stutter"},0));
     return {p.begin(),p.end()};
 }
@@ -111,9 +123,12 @@ void BackReverseAudioProcessor::syncEngineFromParameters(){
     engine.setRandomSeed(seed);
     engine.setDryWet(*state.getRawParameterValue("dry"),*state.getRawParameterValue("wet"));
 
-    fx.stutter.enabled=*state.getRawParameterValue("stutterOn")>0.5f; fx.stutter.periodFrames=std::max<std::size_t>(1,static_cast<std::size_t>(sr**state.getRawParameterValue("stutterMs")/1000.0));fx.stutter.repeatFrames=std::max<std::size_t>(1,fx.stutter.periodFrames/2);fx.stutter.wet=*state.getRawParameterValue("stutterWet");fx.stutter.dry=1.0f-fx.stutter.wet;fx.stutter.alternateDirection=true;
-    fx.delay.enabled=*state.getRawParameterValue("delayOn")>0.5f;fx.delay.delayFrames=std::max<std::size_t>(1,static_cast<std::size_t>(sr**state.getRawParameterValue("delayMs")/1000.0));fx.delay.feedback=*state.getRawParameterValue("delayFeedback");fx.delay.wet=*state.getRawParameterValue("delayWet");fx.delay.dry=1.0f;fx.delay.pingPong=true;
-    fx.echo.enabled=*state.getRawParameterValue("echoOn")>0.5f;fx.echo.delayFrames=std::max<std::size_t>(1,static_cast<std::size_t>(sr**state.getRawParameterValue("echoMs")/1000.0));fx.echo.feedback=*state.getRawParameterValue("echoFeedback");fx.echo.damping=*state.getRawParameterValue("echoDamping");fx.echo.wet=*state.getRawParameterValue("echoWet");fx.echo.dry=1.0f;fx.echo.drift=0.35f;fx.echo.wowFlutter=0.25f;
+    fx.stutter.enabled=*state.getRawParameterValue("stutterOn")>0.5f; fx.stutter.periodFrames=std::max<std::size_t>(1,static_cast<std::size_t>(sr**state.getRawParameterValue("stutterMs")/1000.0));fx.stutter.repeatFrames=std::max<std::size_t>(1,fx.stutter.periodFrames/2);fx.stutter.wet=*state.getRawParameterValue("stutterWet");fx.stutter.dry=*state.getRawParameterValue("stutterDry");
+    fx.stutter.repeats=(int)*state.getRawParameterValue("stutterRepeats");fx.stutter.decay=*state.getRawParameterValue("stutterDecay");fx.stutter.alternateDirection=*state.getRawParameterValue("stutterAlternate")>0.5f;
+    fx.delay.enabled=*state.getRawParameterValue("delayOn")>0.5f;fx.delay.delayFrames=std::max<std::size_t>(1,static_cast<std::size_t>(sr**state.getRawParameterValue("delayMs")/1000.0));fx.delay.feedback=*state.getRawParameterValue("delayFeedback");fx.delay.wet=*state.getRawParameterValue("delayWet");fx.delay.dry=*state.getRawParameterValue("delayDry");
+    fx.delay.pingPong=*state.getRawParameterValue("delayPingPong")>0.5f;fx.delay.lowpassHz=*state.getRawParameterValue("delayLowpass");fx.delay.highpassHz=*state.getRawParameterValue("delayHighpass");
+    fx.echo.enabled=*state.getRawParameterValue("echoOn")>0.5f;fx.echo.delayFrames=std::max<std::size_t>(1,static_cast<std::size_t>(sr**state.getRawParameterValue("echoMs")/1000.0));fx.echo.feedback=*state.getRawParameterValue("echoFeedback");fx.echo.damping=*state.getRawParameterValue("echoDamping");fx.echo.wet=*state.getRawParameterValue("echoWet");fx.echo.dry=*state.getRawParameterValue("echoDry");
+    fx.echo.spread=*state.getRawParameterValue("echoSpread");fx.echo.drift=*state.getRawParameterValue("echoDrift");fx.echo.wowFlutter=*state.getRawParameterValue("echoWow");
     const int order=static_cast<int>(*state.getRawParameterValue("fxOrder"));
     static constexpr std::array<std::array<br::EffectType,3>,6> orders={{
         {br::EffectType::Stutter,br::EffectType::Delay,br::EffectType::Echo},
