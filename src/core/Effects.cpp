@@ -6,7 +6,8 @@ namespace br {
 void BackReverseEngine::applyEffects(std::vector<float>& d,std::size_t channels){
     if(d.empty()||channels==0) return;
 
-    if(fx_.stutter.enabled && fx_.stutter.periodFrames>0 && fx_.stutter.repeatFrames>0){
+    auto processStutter = [&] {
+        if(!fx_.stutter.enabled || fx_.stutter.periodFrames==0 || fx_.stutter.repeatFrames==0) return;
         const auto src=d;
         const std::size_t frames=d.size()/channels;
         for(std::size_t base=0;base<frames;base+=fx_.stutter.periodFrames){
@@ -25,9 +26,10 @@ void BackReverseEngine::applyEffects(std::vector<float>& d,std::size_t channels)
                 }
             }
         }
-    }
+    };
 
-    if(fx_.delay.enabled && !delayBuffer_.empty()){
+    auto processDelay = [&] {
+        if(!fx_.delay.enabled || delayBuffer_.empty()) return;
         const std::size_t capFrames=delayBuffer_.size()/channels;
         const std::size_t df=std::clamp<std::size_t>(fx_.delay.delayFrames,1,capFrames-1);
         for(std::size_t f=0;f<d.size()/channels;++f){
@@ -42,9 +44,10 @@ void BackReverseEngine::applyEffects(std::vector<float>& d,std::size_t channels)
             }
             ++delayWrite_;
         }
-    }
+    };
 
-    if(fx_.echo.enabled && !echoBuffer_.empty()){
+    auto processEcho = [&] {
+        if(!fx_.echo.enabled || echoBuffer_.empty()) return;
         const std::size_t capFrames=echoBuffer_.size()/channels;
         const std::size_t ef=std::clamp<std::size_t>(fx_.echo.delayFrames,1,capFrames-1);
         float lpL=0.0f,lpR=0.0f;
@@ -58,11 +61,21 @@ void BackReverseEngine::applyEffects(std::vector<float>& d,std::size_t channels)
                 lp+=(delayed-lp)*(1.0f-damp);
                 delayed=lp;
                 const float x=d[f*channels+ch];
+                const float wow=1.0f+fx_.echo.wowFlutter*0.005f*std::sin(static_cast<float>(echoWrite_)*0.0021f);
                 const float drift=1.0f+fx_.echo.drift*0.01f*std::sin(static_cast<float>(echoWrite_)*0.00037f);
-                echoBuffer_[writeFrame*channels+ch]=std::clamp(x+delayed*std::clamp(fx_.echo.feedback,-0.99f,0.99f)*drift,-8.0f,8.0f);
-                d[f*channels+ch]=fx_.echo.dry*x+fx_.echo.wet*delayed;
+                echoBuffer_[writeFrame*channels+ch]=std::clamp(x+delayed*std::clamp(fx_.echo.feedback,-0.99f,0.99f)*drift*wow,-8.0f,8.0f);
+                float spreadGain = (channels>1 && ch==1) ? (1.0f+fx_.echo.spread*0.25f) : (1.0f-fx_.echo.spread*0.25f);
+                d[f*channels+ch]=fx_.echo.dry*x+fx_.echo.wet*delayed*spreadGain;
             }
             ++echoWrite_;
+        }
+    };
+
+    for(auto effect : fx_.chain){
+        switch(effect){
+            case EffectType::Stutter: processStutter(); break;
+            case EffectType::Delay: processDelay(); break;
+            case EffectType::Echo: processEcho(); break;
         }
     }
 
