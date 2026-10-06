@@ -15,6 +15,8 @@ static bool near(float a,float b,float e=1e-4f){return std::fabs(a-b)<=e;}
 int main(){
  using namespace br;
 
+ CHECK("default live buffer stays within five seconds", EngineConfig{}.maxChunkFrames<=48000u*5u);
+
  {
    EngineConfig c; c.sampleRate=1.0; c.channels=1; c.maxChunkFrames=1000;
    BackReverseEngine e(c); ChunkParams p; p.durationSeconds=4.0; p.ratio=1.0; e.setChunkParams(p);
