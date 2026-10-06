@@ -45,6 +45,7 @@ struct ChunkParams {
     bool invertRight {false};
     double phaseDegrees {0.0};
     std::vector<GateStep> gates {};
+    std::size_t activeGateCount {0};
 };
 struct EngineConfig {
     double sampleRate {48000.0};
@@ -70,7 +71,7 @@ public:
     explicit BackReverseEngine(EngineConfig cfg = {});
     void prepare(double sampleRate, std::size_t channels, std::size_t maxChunkFrames);
     void reset();
-    void setChunkParams(ChunkParams params);
+    void setChunkParams(const ChunkParams& params);
     void setChunkPattern(std::vector<ChunkParams> pattern);
     void setReverseMode(ReverseMode mode) noexcept { cfg_.reverseMode=mode; }
     void setOrderMode(OrderMode mode);
