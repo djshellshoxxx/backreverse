@@ -2,6 +2,11 @@ name: build-and-test
 on:
   push:
   pull_request:
+
+concurrency:
+  group: backreverse-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   core:
     runs-on: ubuntu-latest
@@ -13,6 +18,7 @@ jobs:
         run: cmake --build build --config Release -j2
       - name: Test
         run: ctest --test-dir build --output-on-failure
+
   plugin-windows:
     runs-on: windows-latest
     steps:
@@ -23,3 +29,10 @@ jobs:
         run: cmake --build build --config Release -j2
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
+      - name: Upload Windows builds
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BackReverse-Windows
+          path: build/BackReverse_artefacts/Release/**
+          if-no-files-found: error
