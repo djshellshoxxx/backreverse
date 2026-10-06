@@ -1,0 +1,106 @@
+#include "backreverse/BackReverseEngine.h"
+#include "backreverse/PatternEngine.h"
+#include <cmath>
+#include <cstdlib>
+#include <iostream>
+#include <string>
+#include <vector>
+
+static int failures=0;
+#define CHECK(name, expr) do { if(!(expr)){ std::cerr<<"FAIL: "<<name<<"\n"; ++failures; } else std::cout<<"PASS: "<<name<<"\n"; } while(0)
+
+static bool near(float a,float b,float e=1e-4f){return std::fabs(a-b)<=e;}
+
+int main(){
+ using namespace br;
+
+ {
+   EngineConfig c; c.sampleRate=1.0; c.channels=1; c.maxChunkFrames=1000;
+   BackReverseEngine e(c); ChunkParams p; p.durationSeconds=4.0; p.ratio=1.0; e.setChunkParams(p);
+   auto y=e.processFinite({0,1,2,3,4,5,6,7},1);
+   CHECK("sequential chunk reversal exact", y==std::vector<float>({3,2,1,0,7,6,5,4}));
+ }
+ {
+   EngineConfig c; c.sampleRate=1.0; c.channels=1; c.maxChunkFrames=1000; c.reverseMode=ReverseMode::WholeSource;
+   BackReverseEngine e(c); auto y=e.processFinite({0,1,2,3,4,5,6,7},1);
+   CHECK("whole source reversal exact", y==std::vector<float>({7,6,5,4,3,2,1,0}));
+ }
+ {
+   EngineConfig c; c.sampleRate=1.0; c.channels=1; c.maxChunkFrames=1000;
+   BackReverseEngine e(c); ChunkParams p; p.durationSeconds=4.0; e.setChunkParams(p);
+   auto y=e.processFinite({0,1,2,3,4,5},1);
+   CHECK("partial final chunk", y==std::vector<float>({3,2,1,0,5,4}));
+ }
+ {
+   EngineConfig c; c.sampleRate=1000.0; c.channels=1; c.maxChunkFrames=100000;
+   BackReverseEngine e(c); ChunkParams p; p.durationSeconds=0.1255; e.setChunkParams(p);
+   CHECK("fractional chunk rounded to frames", e.latencyFrames()==126);
+ }
+ {
+   EngineConfig c; c.sampleRate=8.0; c.channels=1; c.maxChunkFrames=100;
+   BackReverseEngine e(c); ChunkParams p; p.durationSeconds=1.0; p.temporalMode=TemporalMode::Rate; p.ratio=2.0; e.setChunkParams(p);
+   auto y=e.processFinite({0,1,2,3,4,5,6,7},1);
+   CHECK("double time halves duration", y.size()==4);
+ }
+ {
+   EngineConfig c; c.sampleRate=8.0; c.channels=1; c.maxChunkFrames=100;
+   BackReverseEngine e(c); ChunkParams p; p.durationSeconds=1.0; p.temporalMode=TemporalMode::Rate; p.ratio=0.5; e.setChunkParams(p);
+   auto y=e.processFinite({0,1,2,3,4,5,6,7},1);
+   CHECK("half time doubles duration", y.size()==16);
+ }
+ {
+   auto a=buildOrder(OrderMode::Random,16,1234,{});
+   auto b=buildOrder(OrderMode::Random,16,1234,{});
+   auto d=buildOrder(OrderMode::Random,16,5678,{});
+   CHECK("random order deterministic by seed",a==b);
+   CHECK("different seed changes order",a!=d);
+ }
+ {
+   auto o=buildOrder(OrderMode::UserPattern,4,0,{0,2,1,3});
+   CHECK("user chunk order",o==std::vector<std::size_t>({0,2,1,3}));
+ }
+ {
+   EngineConfig c; c.sampleRate=4.0; c.channels=2; c.maxChunkFrames=100;
+   BackReverseEngine e(c); ChunkParams p; p.durationSeconds=1.0; p.swapStereo=true; e.setChunkParams(p);
+   auto y=e.processFinite({1,10,2,20,3,30,4,40},2);
+   CHECK("stereo swap occurs", near(y[0],40.0f*std::sqrt(0.5f)) && near(y[1],4.0f*std::sqrt(0.5f)));
+ }
+ {
+   EngineConfig c; c.sampleRate=4.0; c.channels=1; c.maxChunkFrames=100;
+   BackReverseEngine e(c); ChunkParams p; p.durationSeconds=1.0;
+   GateStep g; g.enabled=false; p.gates={g}; e.setChunkParams(p);
+   auto y=e.processFinite({1,2,3,4},1);
+   bool allzero=true; for(float v:y) allzero&=near(v,0);
+   CHECK("disabled gate silences",allzero);
+ }
+ {
+   EngineConfig c; c.sampleRate=4.0; c.channels=1; c.maxChunkFrames=100;
+   BackReverseEngine e(c); ChunkParams p; p.durationSeconds=1.0;
+   GateStep g; g.direction=GateDirection::ForceForward; p.gates={g}; e.setChunkParams(p);
+   auto y=e.processFinite({1,2,3,4},1);
+   CHECK("force-forward gate cancels parent reverse", y==std::vector<float>({1,2,3,4}));
+ }
+ {
+   EngineConfig c; c.sampleRate=4.0; c.channels=1; c.maxChunkFrames=100;
+   BackReverseEngine e(c); ChunkParams p; p.durationSeconds=1.0; e.setChunkParams(p); e.setDryWet(0,1);
+   std::vector<float> in={1,2,3,4,5,6,7,8}, out(8);
+   e.processLive(in,out);
+   CHECK("live first chunk is latency silence", near(out[0],0)&&near(out[1],0)&&near(out[2],0)&&near(out[3],0));
+   CHECK("live second chunk emits first reversed", near(out[4],4)&&near(out[5],3)&&near(out[6],2)&&near(out[7],1));
+ }
+ {
+   EngineConfig c; c.sampleRate=100.0; c.channels=1; c.maxChunkFrames=1000;
+   BackReverseEngine e(c); ChunkParams p; p.durationSeconds=1.0; p.temporalMode=TemporalMode::TimeStretch; p.ratio=0.5; e.setChunkParams(p);
+   std::vector<float> in(100); for(int i=0;i<100;++i) in[i]=std::sin(i*0.2f);
+   auto y=e.processFinite(in,1);
+   CHECK("time stretch half-rate expands duration", y.size()==200);
+ }
+ {
+   EngineConfig c; c.sampleRate=4.0; c.channels=1; c.maxChunkFrames=100;
+   BackReverseEngine e(c);
+   std::vector<float> d={0,10,20,30};
+   CHECK("scratch interpolation", near(e.scrubSample(d,1,0,1.5),15));
+ }
+ std::cout<<(failures?"TESTS FAILED":"ALL TESTS PASSED")<<"\n";
+ return failures?1:0;
+}
