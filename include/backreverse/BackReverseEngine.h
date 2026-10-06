@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -55,7 +56,9 @@ struct EngineConfig {
     OrderMode orderMode {OrderMode::Sequential};
     std::uint64_t randomSeed {0xBACC0FFEEULL};
 };
+enum class EffectType { Stutter, Delay, Echo };
 struct EffectSettings {
+    std::array<EffectType,3> chain { EffectType::Stutter, EffectType::Delay, EffectType::Echo };
     struct Stutter { bool enabled {false}; std::size_t periodFrames {2400}; std::size_t repeatFrames {1200}; int repeats {2}; float decay {1.0f}; float wet {1.0f}; float dry {0.0f}; bool alternateDirection {false}; } stutter;
     struct Delay { bool enabled {false}; std::size_t delayFrames {12000}; float feedback {0.25f}; float wet {0.25f}; float dry {1.0f}; bool pingPong {false}; } delay;
     struct Echo { bool enabled {false}; std::size_t delayFrames {18000}; float feedback {0.35f}; float damping {0.2f}; float spread {0.0f}; float drift {0.0f}; float wowFlutter {0.0f}; float wet {0.25f}; float dry {1.0f}; } echo;
