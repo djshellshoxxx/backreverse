@@ -41,7 +41,12 @@ static std::string trim(std::string s){
 
 std::vector<int> parseUserPattern(const std::string& text,std::size_t chunkCount,std::uint64_t seed){
     std::vector<int> out;if(chunkCount==0)return out;
-    std::string normalized=text;for(char& ch:normalized)if(ch==';'||ch=='\n'||ch=='\t')ch=',';
+    std::string normalized;normalized.reserve(text.size());
+    for(unsigned char ch:text){
+        if(ch==','||ch==';'||std::isspace(ch)){
+            if(normalized.empty()||normalized.back()!=',')normalized.push_back(',');
+        }else normalized.push_back(static_cast<char>(ch));
+    }
     std::stringstream ss(normalized);std::string token;std::mt19937_64 rng(seed);int last=0;
     while(std::getline(ss,token,',')){
         token=trim(token);if(token.empty())continue;
