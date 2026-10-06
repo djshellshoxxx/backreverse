@@ -54,9 +54,15 @@ void WaveformView::paint(juce::Graphics& g){
     const double len=processor.fileLengthSeconds(); const double chunk=*processor.state.getRawParameterValue("chunkSeconds");
     if(len>0&&chunk>0){g.setColour(juce::Colour(0x558b95a5));for(double t=chunk;t<len;t+=chunk){float x=r.getX()+r.getWidth()*(float)(t/len);g.drawVerticalLine((int)x,r.getY(),r.getBottom());}}
 }
-void WaveformView::seek(const juce::MouseEvent& e){processor.seekFile(juce::jlimit(0.0,1.0,(double)e.x/std::max(1,getWidth())));repaint();}
-void WaveformView::mouseDown(const juce::MouseEvent& e){seek(e);}
-void WaveformView::mouseDrag(const juce::MouseEvent& e){seek(e);}
+void WaveformView::seek(const juce::MouseEvent& ev,bool start){
+    const double now=juce::Time::getMillisecondCounterHiRes();const double norm=juce::jlimit(0.0,1.0,(double)ev.x/std::max(1,getWidth()));
+    if(start){lastNorm=norm;lastMs=now;processor.beginScratch(norm);}
+    else{const double dt=std::max(1.0,now-lastMs)/1000.0;const double vel=(norm-lastNorm)/dt;processor.updateScratch(norm,vel);lastNorm=norm;lastMs=now;}
+    repaint();
+}
+void WaveformView::mouseDown(const juce::MouseEvent& ev){seek(ev,true);}
+void WaveformView::mouseDrag(const juce::MouseEvent& ev){seek(ev,false);}
+void WaveformView::mouseUp(const juce::MouseEvent&){processor.endScratch();}
 
 BackReverseAudioProcessorEditor::BackReverseAudioProcessorEditor(BackReverseAudioProcessor& proc)
 :AudioProcessorEditor(&proc),p(proc),gateGrid(proc),gateCurve(proc),waveform(proc){
@@ -77,6 +83,7 @@ BackReverseAudioProcessorEditor::BackReverseAudioProcessorEditor(BackReverseAudi
     addCombo(fxOrder,{"Stutter > Delay > Echo","Stutter > Echo > Delay","Delay > Stutter > Echo","Delay > Echo > Stutter","Echo > Stutter > Delay","Echo > Delay > Stutter"});
     addCombo(preset,{"Basic 5s Reverse","Whole Track Reverse","Half Speed Reverse","Quarter Stretch Surreal","Triple Speed Fragments","Random Cut Up","Forward Gate Breaks","Stereo Mirror","Polarity Flicker","Stutter Delay Echo","Echo Into Stutter","Vinyl Slow Drag","Extreme Stretch"});
     addCombo(chunkUnit,{"seconds","milliseconds","samples"});chunkUnit.setSelectedId(1,juce::dontSendNotification);
+    addCombo(scratchMode,{"Linear","Vinyl","Tape Shuttle","Fine"});addCombo(scratchRelease,{"Latch","Spring Return","Continue"});
     preset.onChange=[this]{if(preset.getSelectedId()>0)p.loadFactoryPreset(preset.getSelectedId()-1);};
 
     configureSlider(chunk,"Chunk length. Display can be seconds, milliseconds, or samples; live reverse latency follows the same duration.");
@@ -88,8 +95,9 @@ BackReverseAudioProcessorEditor::BackReverseAudioProcessorEditor(BackReverseAudi
     configureSlider(gateWidth,"Gate active width");configureSlider(gateGap,"Gate gap proportion");
     configureSlider(stutterWet,"Stut Wet");configureSlider(stutterDry,"Stut Dry");configureSlider(stutterDecay,"Stut Decay");configureSlider(stutterRepeats,"Stut Repeats");
     configureSlider(delayWet,"Delay Wet");configureSlider(delayDry,"Delay Dry");configureSlider(delayFeedback,"Delay Feedback");configureSlider(delayLowpass,"Delay LP");configureSlider(delayHighpass,"Delay HP");
+    configureSlider(scratchInertia,"Scratch Inertia");configureSlider(scratchFriction,"Scratch Friction");configureSlider(scratchMaxRate,"Scratch Max Rate");
     configureSlider(echoWet,"Echo Wet");configureSlider(echoDry,"Echo Dry");configureSlider(echoFeedback,"Echo Feedback");configureSlider(echoDamping,"Echo Damping");configureSlider(echoSpread,"Echo Spread");configureSlider(echoDrift,"Echo Drift");configureSlider(echoWow,"Echo Wow");
-    for(auto* b:{&swap,&hostSync,&stutter,&delay,&echo,&stutterAlternate,&delayPingPong}) addAndMakeVisible(*b);
+    for(auto* b:{&swap,&hostSync,&stutter,&delay,&echo,&stutterAlternate,&delayPingPong,&scratchReverseOnly}) addAndMakeVisible(*b);
     for(auto* b:{&quarter,&half,&normal,&dbl,&triple})addAndMakeVisible(*b);
     auto rate=[this](float v){if(auto* q=p.state.getParameter("ratio"))q->setValueNotifyingHost(q->convertTo0to1(v));};
     quarter.onClick=[rate]{rate(0.25f);};half.onClick=[rate]{rate(0.5f);};normal.onClick=[rate]{rate(1.0f);};dbl.onClick=[rate]{rate(2.0f);};triple.onClick=[rate]{rate(3.0f);};
@@ -115,11 +123,12 @@ BackReverseAudioProcessorEditor::BackReverseAudioProcessorEditor(BackReverseAudi
     SAadd("chunkSeconds",chunk);SAadd("ratio",ratio);SAadd("pan",pan);SAadd("phase",phase);SAadd("dry",dry);SAadd("wet",wet);SAadd("gateWidth",gateWidth);SAadd("gateGap",gateGap);
     SAadd("stutterWet",stutterWet);SAadd("stutterDry",stutterDry);SAadd("stutterDecay",stutterDecay);SAadd("stutterRepeats",stutterRepeats);
     SAadd("delayWet",delayWet);SAadd("delayDry",delayDry);SAadd("delayFeedback",delayFeedback);SAadd("delayLowpass",delayLowpass);SAadd("delayHighpass",delayHighpass);
+    SAadd("scratchInertia",scratchInertia);SAadd("scratchFriction",scratchFriction);SAadd("scratchMaxRate",scratchMaxRate);
     SAadd("echoWet",echoWet);SAadd("echoDry",echoDry);SAadd("echoFeedback",echoFeedback);SAadd("echoDamping",echoDamping);SAadd("echoSpread",echoSpread);SAadd("echoDrift",echoDrift);SAadd("echoWow",echoWow);
     auto BAadd=[&](const char* id,juce::Button& b){bas.emplace_back(std::make_unique<BA>(s,id,b));};
-    BAadd("swapStereo",swap);BAadd("hostSync",hostSync);BAadd("stutterOn",stutter);BAadd("delayOn",delay);BAadd("echoOn",echo);BAadd("stutterAlternate",stutterAlternate);BAadd("delayPingPong",delayPingPong);
+    BAadd("swapStereo",swap);BAadd("hostSync",hostSync);BAadd("stutterOn",stutter);BAadd("delayOn",delay);BAadd("echoOn",echo);BAadd("stutterAlternate",stutterAlternate);BAadd("delayPingPong",delayPingPong);BAadd("scratchReverseOnly",scratchReverseOnly);
     auto CAadd=[&](const char* id,juce::ComboBox& b){cas.emplace_back(std::make_unique<CA>(s,id,b));};
-    CAadd("reverseMode",reverseMode);CAadd("orderMode",orderMode);CAadd("temporalMode",timeMode);CAadd("polarity",polarity);CAadd("syncDivision",syncDivision);CAadd("gateSteps",gateSteps);CAadd("gateShape",gateShape);CAadd("gapMode",gapMode);CAadd("fxOrder",fxOrder);
+    CAadd("reverseMode",reverseMode);CAadd("orderMode",orderMode);CAadd("temporalMode",timeMode);CAadd("polarity",polarity);CAadd("syncDivision",syncDivision);CAadd("gateSteps",gateSteps);CAadd("gateShape",gateShape);CAadd("gapMode",gapMode);CAadd("fxOrder",fxOrder);CAadd("scratchMode",scratchMode);CAadd("scratchRelease",scratchRelease);
     startTimerHz(20);
 }
 
@@ -131,6 +140,7 @@ void BackReverseAudioProcessorEditor::paint(juce::Graphics& g){
     auto label=[&](juce::Slider& s,const char* txt){auto b=s.getBounds();g.drawFittedText(txt,b.getX(),b.getY()-13,b.getWidth(),13,juce::Justification::centred,1);};
     label(stutterWet,"St W");label(stutterDry,"St D");label(stutterDecay,"St Dec");label(stutterRepeats,"St Rep");
     label(delayWet,"Dl W");label(delayDry,"Dl D");label(delayFeedback,"Dl Fbk");label(delayLowpass,"Dl LP");label(delayHighpass,"Dl HP");
+    label(scratchInertia,"Sc In");label(scratchFriction,"Sc Fr");label(scratchMaxRate,"Sc Max");
     label(echoWet,"Ec W");label(echoDry,"Ec D");label(echoFeedback,"Ec Fbk");label(echoDamping,"Ec Damp");label(echoSpread,"Ec Spr");label(echoDrift,"Ec Drift");label(echoWow,"Ec Wow");
     g.drawText("Gate: click on/off • right=F • Shift=S • Ctrl=Delay • Alt=Echo • waveform drag=scratch",20,getHeight()-25,getWidth()-40,16,juce::Justification::centred);
 }
@@ -146,6 +156,8 @@ void BackReverseAudioProcessorEditor::resized(){
     r.removeFromTop(6);
     auto fx1=r.removeFromTop(95);const int fxw=fx1.getWidth()/9;
     for(auto* s:{&stutterWet,&stutterDry,&stutterDecay,&stutterRepeats,&delayWet,&delayDry,&delayFeedback,&delayLowpass,&delayHighpass})s->setBounds(fx1.removeFromLeft(fxw).reduced(3,8));
+    auto scratchRow=r.removeFromTop(75);scratchMode.setBounds(scratchRow.removeFromLeft(130).reduced(2));scratchRelease.setBounds(scratchRow.removeFromLeft(130).reduced(2));scratchReverseOnly.setBounds(scratchRow.removeFromLeft(85));
+    const int scw=scratchRow.getWidth()/3;for(auto* s:{&scratchInertia,&scratchFriction,&scratchMaxRate})s->setBounds(scratchRow.removeFromLeft(scw).reduced(3,4));
     auto fx2=r.removeFromTop(95);const int exw=fx2.getWidth()/9;
     for(auto* s:{&echoWet,&echoDry,&echoFeedback,&echoDamping,&echoSpread,&echoDrift,&echoWow})s->setBounds(fx2.removeFromLeft(exw).reduced(3,8));
     stutterAlternate.setBounds(fx2.removeFromLeft(90));delayPingPong.setBounds(fx2.removeFromLeft(90));

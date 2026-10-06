@@ -64,6 +64,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout BackReverseAudioProcessor::m
     p.push_back(std::make_unique<juce::AudioParameterFloat>("echoSpread","Echo Spread",-1.0f,1.0f,0.0f));
     p.push_back(std::make_unique<juce::AudioParameterFloat>("echoDrift","Echo Drift",0.0f,1.0f,0.35f));
     p.push_back(std::make_unique<juce::AudioParameterFloat>("echoWow","Echo Wow Flutter",0.0f,1.0f,0.25f));
+    p.push_back(std::make_unique<juce::AudioParameterChoice>("scratchMode","Scratch Mode",juce::StringArray{"Linear","Vinyl","Tape Shuttle","Fine"},1));
+    p.push_back(std::make_unique<juce::AudioParameterChoice>("scratchRelease","Scratch Release",juce::StringArray{"Latch","Spring Return","Continue"},2));
+    p.push_back(std::make_unique<juce::AudioParameterFloat>("scratchInertia","Scratch Inertia",0.0f,0.9999f,0.92f));
+    p.push_back(std::make_unique<juce::AudioParameterFloat>("scratchFriction","Scratch Friction",0.0f,1.0f,0.12f));
+    p.push_back(std::make_unique<juce::AudioParameterFloat>("scratchMaxRate","Scratch Max Rate",0.25f,12.0f,8.0f));
+    p.push_back(std::make_unique<juce::AudioParameterBool>("scratchReverseOnly","Scratch Reverse Only",false));
     p.push_back(std::make_unique<juce::AudioParameterChoice>("fxOrder","FX Order",juce::StringArray{"Stutter > Delay > Echo","Stutter > Echo > Delay","Delay > Stutter > Echo","Delay > Echo > Stutter","Echo > Stutter > Delay","Echo > Delay > Stutter"},0));
     return {p.begin(),p.end()};
 }
@@ -143,6 +149,10 @@ void BackReverseAudioProcessor::syncEngineFromParameters(){
     setLatencySamples(static_cast<int>(std::min<std::size_t>(engine.latencyFrames(),static_cast<std::size_t>(std::numeric_limits<int>::max()))));
 }
 
+static float sampleLoadedLinear(const std::vector<float>& d,std::size_t frames,int channels,int ch,double frame){
+    if(d.empty()||frames==0||channels<=0)return 0.0f;frame=std::clamp(frame,0.0,(double)(frames-1));auto a=(std::size_t)frame,b=std::min(a+1,frames-1);float t=(float)(frame-a);return d[a*(std::size_t)channels+(std::size_t)ch]+(d[b*(std::size_t)channels+(std::size_t)ch]-d[a*(std::size_t)channels+(std::size_t)ch])*t;
+}
+
 void BackReverseAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::MidiBuffer&){
     juce::ScopedNoDenormals noDenormals;
     if(auto* ph=getPlayHead()){
@@ -150,6 +160,28 @@ void BackReverseAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,ju
     }
     syncEngineFromParameters();
     const int channels=buffer.getNumChannels(),totalFrames=buffer.getNumSamples(); if(channels<=0||totalFrames<=0)return;
+    const int reverseModeIndex=static_cast<int>(*state.getRawParameterValue("reverseMode"));
+    const bool directScratch=fileActive.load()&&(scratchActive.load()||reverseModeIndex==3);
+    if(directScratch&&loadedFrames>0){
+        const double sr=std::max(1.0,getSampleRate());
+        const double target=scratchTargetNorm.load()*(loadedFrames-1);
+        const double maxRate=*state.getRawParameterValue("scratchMaxRate");
+        const int scratchModeIndex=static_cast<int>(*state.getRawParameterValue("scratchMode"));
+        double requested=scratchVelocityNormPerSec.load()*loadedFrames/sr;
+        if(scratchModeIndex==3)requested*=0.2;
+        if(*state.getRawParameterValue("scratchReverseOnly")>0.5f)requested=-std::abs(requested);
+        requested=std::clamp(requested,-maxRate,maxRate);
+        if(scratchActive.load()){scratchAudioFrame=target;scratchAudioVelocity=requested;}
+        const double inertia=*state.getRawParameterValue("scratchInertia");
+        const double friction=*state.getRawParameterValue("scratchFriction");
+        for(int f=0;f<totalFrames;++f){
+            for(int ch=0;ch<channels;++ch){int sourceCh=std::min(ch,std::max(0,loadedChannels-1));buffer.setSample(ch,f,sampleLoadedLinear(loadedInterleaved,loadedFrames,loadedChannels,sourceCh,scratchAudioFrame));}
+            scratchAudioFrame=std::clamp(scratchAudioFrame+scratchAudioVelocity,0.0,(double)(loadedFrames-1));
+            if(!scratchActive.load()){scratchAudioVelocity*=inertia;const double drag=friction/sr;if(scratchAudioVelocity>0)scratchAudioVelocity=std::max(0.0,scratchAudioVelocity-drag);else scratchAudioVelocity=std::min(0.0,scratchAudioVelocity+drag);}
+        }
+        fileFrame.store((std::size_t)std::clamp(scratchAudioFrame,0.0,(double)(loadedFrames-1)));
+        return;
+    }
     const std::size_t capFrames=inScratch.size()/static_cast<std::size_t>(channels);
     int offset=0;
     while(offset<totalFrames){
@@ -190,6 +222,9 @@ bool BackReverseAudioProcessor::loadAudioFile(const juce::File& file){
     fileFrame.store(0);fileActive.store(true);filePlaying.store(true);engine.reset();return true;
 }
 void BackReverseAudioProcessor::unloadAudioFile(){fileActive.store(false);filePlaying.store(false);loadedInterleaved.clear();waveformPeaks.clear();loadedFrames=0;fileFrame.store(0);engine.reset();}
+void BackReverseAudioProcessor::beginScratch(double n){if(!loadedFrames)return;scratchReturnFrame=fileFrame.load();scratchTargetNorm.store(std::clamp(n,0.0,1.0));scratchVelocityNormPerSec.store(0);scratchAudioFrame=scratchTargetNorm.load()*(loadedFrames-1);scratchActive.store(true);}
+void BackReverseAudioProcessor::updateScratch(double n,double v){if(!loadedFrames)return;scratchTargetNorm.store(std::clamp(n,0.0,1.0));scratchVelocityNormPerSec.store(v);}
+void BackReverseAudioProcessor::endScratch(){if(!loadedFrames)return;scratchActive.store(false);int release=(int)*state.getRawParameterValue("scratchRelease");if(release==1){scratchAudioFrame=(double)std::min(scratchReturnFrame,loadedFrames-1);fileFrame.store((std::size_t)scratchAudioFrame);scratchAudioVelocity=0;}else if(release==2){fileFrame.store((std::size_t)std::clamp(scratchAudioFrame,0.0,(double)(loadedFrames-1)));scratchAudioVelocity=0;}}
 void BackReverseAudioProcessor::seekFile(double n){if(loadedFrames){fileFrame.store(std::min<std::size_t>(loadedFrames-1,static_cast<std::size_t>(std::clamp(n,0.0,1.0)*(loadedFrames-1))));engine.reset();}}
 double BackReverseAudioProcessor::filePlayheadNormalized()const noexcept{return loadedFrames?static_cast<double>(fileFrame.load())/loadedFrames:0.0;}
 double BackReverseAudioProcessor::fileLengthSeconds()const noexcept{return loadedSampleRate>0?loadedFrames/loadedSampleRate:0.0;}

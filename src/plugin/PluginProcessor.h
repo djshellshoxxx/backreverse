@@ -37,6 +37,9 @@ public:
     void setFilePlaying(bool b) noexcept { filePlaying.store(b); }
     bool isFilePlaying() const noexcept { return filePlaying.load(); }
     void seekFile(double normalized);
+    void beginScratch(double normalized);
+    void updateScratch(double normalized,double normalizedVelocityPerSecond);
+    void endScratch();
     double filePlayheadNormalized() const noexcept;
     double fileLengthSeconds() const noexcept;
     std::vector<float> getWaveformPeaks() const { return waveformPeaks; }
@@ -66,6 +69,10 @@ private:
     std::vector<bool> gateStutter,gateDelay,gateEcho;
     std::uint64_t seed {0xBACC0FFEEULL};
     std::atomic<double> lastBpm {120.0};
+    std::atomic<bool> scratchActive {false};
+    std::atomic<double> scratchTargetNorm {0.0},scratchVelocityNormPerSec {0.0};
+    double scratchAudioFrame {0.0},scratchAudioVelocity {0.0};
+    std::size_t scratchReturnFrame {0};
 
     juce::AudioFormatManager formatManager;
     std::vector<float> loadedInterleaved;
