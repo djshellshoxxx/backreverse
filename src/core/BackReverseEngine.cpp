@@ -96,11 +96,30 @@ void BackReverseEngine::reset() {
 }
 
 void BackReverseEngine::setChunkParams(const ChunkParams& input) {
-    ChunkParams p=input;
-    p.durationSeconds = std::max(0.001, p.durationSeconds);
-    p.ratio = std::clamp(p.ratio, 0.05, 8.0);
-    p.pan = std::clamp(p.pan, -1.0f, 1.0f);
-    chunk_ = std::move(p);
+    chunk_.durationSeconds = std::isfinite(input.durationSeconds)
+        ? std::max(0.001, input.durationSeconds) : 0.001;
+    chunk_.ratio = std::isfinite(input.ratio)
+        ? std::clamp(input.ratio, 0.05, 8.0) : 1.0;
+    chunk_.preservePitch = input.preservePitch;
+    chunk_.temporalMode = input.temporalMode;
+    chunk_.pan = std::isfinite(input.pan) ? std::clamp(input.pan, -1.0f, 1.0f) : 0.0f;
+    chunk_.swapStereo = input.swapStereo;
+    chunk_.invertLeft = input.invertLeft;
+    chunk_.invertRight = input.invertRight;
+    chunk_.phaseDegrees = std::isfinite(input.phaseDegrees)
+        ? std::clamp(input.phaseDegrees, -179.0, 179.0) : 0.0;
+
+    const auto gateCount = std::min<std::size_t>(input.gates.size(), 64);
+    chunk_.gates.assign(input.gates.begin(), input.gates.begin() + static_cast<std::ptrdiff_t>(gateCount));
+    chunk_.activeGateCount = input.activeGateCount == 0
+        ? 0 : std::min(input.activeGateCount, gateCount);
+    for (auto& gate : chunk_.gates) {
+        gate.width = std::isfinite(gate.width) ? std::clamp(gate.width, 0.0f, 1.0f) : 1.0f;
+        gate.gap = std::isfinite(gate.gap) ? std::clamp(gate.gap, 0.0f, 1.0f) : 0.0f;
+        gate.depth = std::isfinite(gate.depth) ? std::clamp(gate.depth, 0.0f, 1.0f) : 1.0f;
+        for (float& point : gate.customCurve)
+            point = std::isfinite(point) ? std::clamp(point, 0.0f, 1.0f) : 0.0f;
+    }
 }
 void BackReverseEngine::setChunkPattern(std::vector<ChunkParams> p) { pattern_ = std::move(p); }
 void BackReverseEngine::setOrderMode(OrderMode m) { cfg_.orderMode=m; }
@@ -111,8 +130,12 @@ void BackReverseEngine::setScratchState(ScratchState s) { scratch_=s; }
 void BackReverseEngine::setDryWet(float dry, float wet) { dry_=std::clamp(dry,0.0f,1.0f); wet_=std::clamp(wet,0.0f,1.0f); }
 
 std::size_t BackReverseEngine::chunkFrames(const ChunkParams& p) const {
+    if (!std::isfinite(p.durationSeconds) || !std::isfinite(cfg_.sampleRate) || cfg_.sampleRate <= 0.0)
+        return 1;
     const double f = std::round(p.durationSeconds * cfg_.sampleRate);
-    return std::clamp<std::size_t>(static_cast<std::size_t>(std::max(1.0, f)), 1, cfg_.maxChunkFrames);
+    if (!std::isfinite(f) || f <= 1.0) return 1;
+    if (f >= static_cast<double>(cfg_.maxChunkFrames)) return cfg_.maxChunkFrames;
+    return static_cast<std::size_t>(f);
 }
 std::size_t BackReverseEngine::latencyFrames() const { return chunkFrames(chunk_); }
 std::vector<std::size_t> BackReverseEngine::makeOrder(std::size_t n) {
@@ -152,8 +175,9 @@ std::vector<float> BackReverseEngine::renderChunk(std::span<const float> in,std:
 
 void BackReverseEngine::applyStereoAndPhase(std::vector<float>& d,std::size_t channels,const ChunkParams& p) const {
     if (channels<1) return;
-    const float angle=static_cast<float>((p.pan+1.0f)*pi/4.0);
-    const float gl=std::cos(angle), gr=std::sin(angle);
+    const float pan=std::clamp(p.pan,-1.0f,1.0f);
+    const float leftGain=pan>0.0f?std::cos(pan*static_cast<float>(pi*0.5)):1.0f;
+    const float rightGain=pan<0.0f?std::cos(-pan*static_cast<float>(pi*0.5)):1.0f;
     const float theta=static_cast<float>(std::clamp(p.phaseDegrees,-179.0,179.0)*pi/180.0);
     const float a=std::clamp(std::tan(theta*0.5f),-0.98f,0.98f);
     float zL=0.0f,zR=0.0f;
@@ -161,12 +185,13 @@ void BackReverseEngine::applyStereoAndPhase(std::vector<float>& d,std::size_t ch
     for(std::size_t i=0;i<frames;++i){
         float l=d[i*channels], r=channels>1?d[i*channels+1]:l;
         if(p.swapStereo && channels>1) std::swap(l,r);
-        if(p.invertLeft) l=-l; if(p.invertRight) r=-r;
+        if(p.invertLeft) l=-l;
+        if(p.invertRight) r=-r;
         // First-order all-pass phase coloration. Frequency-dependent by design.
         float yl=-a*l+zL; zL=l+a*yl;
         float yr=-a*r+zR; zR=r+a*yr;
         if(std::abs(p.phaseDegrees)>1.0e-6){l=yl;r=yr;}
-        if(channels>1){ d[i*channels]=l*gl; d[i*channels+1]=r*gr; }
+        if(channels>1){ d[i*channels]=l*leftGain; d[i*channels+1]=r*rightGain; }
         else d[i]=l;
     }
 }
@@ -199,7 +224,6 @@ void BackReverseEngine::applyGates(std::vector<float>& d,std::size_t channels,co
                 std::swap(d[(a+i)*channels+ch],d[(b-1-i)*channels+ch]);
 
         const double activeEnd=std::clamp<double>(g.width*(1.0-g.gap),0.0,1.0);
-        const double gapStart=std::clamp<double>(1.0-g.gap,activeEnd,1.0);
         std::array<float,64> held{};
         const std::size_t heldChannels=std::min<std::size_t>(channels,held.size());
         for(std::size_t ch=0;ch<heldChannels;++ch) held[ch]=d[a*channels+ch];
