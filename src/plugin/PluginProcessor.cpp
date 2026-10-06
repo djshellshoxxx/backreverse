@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "backreverse/PatternEngine.h"
 #include <algorithm>
 #include <limits>
 #include <random>
@@ -102,7 +103,9 @@ void BackReverseAudioProcessor::syncEngineFromParameters(){
 
     engine.setChunkParams(params);
     engine.setReverseMode(static_cast<br::ReverseMode>(static_cast<int>(*state.getRawParameterValue("reverseMode"))));
-    engine.setOrderMode(static_cast<br::OrderMode>(static_cast<int>(*state.getRawParameterValue("orderMode")))); engine.setRandomSeed(seed);
+    engine.setOrderMode(static_cast<br::OrderMode>(static_cast<int>(*state.getRawParameterValue("orderMode"))));
+    engine.setUserPatternText(state.state.getProperty("userPattern","").toString().toStdString());
+    engine.setRandomSeed(seed);
     engine.setDryWet(*state.getRawParameterValue("dry"),*state.getRawParameterValue("wet"));
 
     fx.stutter.enabled=*state.getRawParameterValue("stutterOn")>0.5f; fx.stutter.periodFrames=std::max<std::size_t>(1,static_cast<std::size_t>(sr**state.getRawParameterValue("stutterMs")/1000.0));fx.stutter.repeatFrames=std::max<std::size_t>(1,fx.stutter.periodFrames/2);fx.stutter.wet=*state.getRawParameterValue("stutterWet");fx.stutter.dry=1.0f-fx.stutter.wet;fx.stutter.alternateDirection=true;
@@ -176,6 +179,12 @@ void BackReverseAudioProcessor::setGateEnabled(int i,bool e){if(i>=0&&i<(int)gat
 bool BackReverseAudioProcessor::gateEnabled(int i)const{return i>=0&&i<(int)gateMask.size()?gateMask[(std::size_t)i]:false;}
 void BackReverseAudioProcessor::setGateForward(int i,bool e){if(i>=0&&i<(int)gateForward.size()){gateForward[(std::size_t)i]=e;state.state.setProperty("gateForward"+juce::String(i),e,nullptr);}}
 bool BackReverseAudioProcessor::gateForwardState(int i)const{return i>=0&&i<(int)gateForward.size()?gateForward[(std::size_t)i]:false;}
+
+void BackReverseAudioProcessor::setUserPatternText(const juce::String& text){
+    state.state.setProperty("userPattern",text,nullptr);
+    engine.setUserPatternText(text.toStdString());
+}
+juce::String BackReverseAudioProcessor::userPatternText() const { return state.state.getProperty("userPattern","").toString(); }
 
 void BackReverseAudioProcessor::randomize(std::uint64_t s){
     seed=s;std::mt19937_64 r(s);

@@ -59,6 +59,11 @@ BackReverseAudioProcessorEditor::BackReverseAudioProcessorEditor(BackReverseAudi
     for(auto* b:{&swap,&hostSync,&stutter,&delay,&echo}) addAndMakeVisible(*b);
 
     addAndMakeVisible(load);addAndMakeVisible(play);addAndMakeVisible(random);addAndMakeVisible(help);
+    patternText.setTextToShowWhenEmpty("User pattern: 0,+2,REST,1*2,4@50",juce::Colour(0xff687384));
+    patternText.setText(p.userPatternText(),false);
+    patternText.setTooltip("Advanced chunk pattern: absolute/relative references, REST, *repeat and @probability");
+    patternText.onTextChange=[this]{p.setUserPatternText(patternText.getText());};
+    addAndMakeVisible(patternText);
     load.onClick=[this]{auto chooser=std::make_shared<juce::FileChooser>("Load audio",juce::File{},"*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg");chooser->launchAsync(juce::FileBrowserComponent::openMode|juce::FileBrowserComponent::canSelectFiles,[this,chooser](const juce::FileChooser& fc){auto f=fc.getResult();if(f.existsAsFile())p.loadAudioFile(f);});};
     play.onClick=[this]{p.setFilePlaying(!p.isFilePlaying());play.setButtonText(p.isFilePlaying()?"Pause":"Play");};
     random.onClick=[this]{auto s=(std::uint64_t)std::chrono::high_resolution_clock::now().time_since_epoch().count();p.randomize(s);gateGrid.repaint();};
@@ -87,6 +92,7 @@ void BackReverseAudioProcessorEditor::resized(){
     auto r=getLocalBounds().reduced(22);auto top=r.removeFromTop(48);title.setBounds(top.removeFromLeft(230));status.setBounds(top.removeFromLeft(290));latencyLabel.setBounds(top.removeFromLeft(250));
     auto actions=r.removeFromTop(34);load.setBounds(actions.removeFromLeft(105));play.setBounds(actions.removeFromLeft(75));random.setBounds(actions.removeFromLeft(105));help.setBounds(actions.removeFromLeft(70));hostSync.setBounds(actions.removeFromLeft(100));syncDivision.setBounds(actions.removeFromLeft(100));
     r.removeFromTop(8);waveform.setBounds(r.removeFromTop(130));
+    r.removeFromTop(5);patternText.setBounds(r.removeFromTop(30));
     auto combos=r.removeFromTop(38);reverseMode.setBounds(combos.removeFromLeft(145).reduced(3));orderMode.setBounds(combos.removeFromLeft(145).reduced(3));timeMode.setBounds(combos.removeFromLeft(130).reduced(3));polarity.setBounds(combos.removeFromLeft(120).reduced(3));fxOrder.setBounds(combos.reduced(3));
     auto knobs=r.removeFromTop(138);const int kw=knobs.getWidth()/8;for(auto* s:{&chunk,&ratio,&pan,&phase,&dry,&wet,&gateWidth,&gateGap})s->setBounds(knobs.removeFromLeft(kw).reduced(4));
     auto gateCtl=r.removeFromTop(34);gateSteps.setBounds(gateCtl.removeFromLeft(90).reduced(2));gateShape.setBounds(gateCtl.removeFromLeft(130).reduced(2));gapMode.setBounds(gateCtl.removeFromLeft(115).reduced(2));swap.setBounds(gateCtl.removeFromLeft(105));stutter.setBounds(gateCtl.removeFromLeft(85));delay.setBounds(gateCtl.removeFromLeft(75));echo.setBounds(gateCtl.removeFromLeft(75));

@@ -111,7 +111,11 @@ std::size_t BackReverseEngine::chunkFrames(const ChunkParams& p) const {
     return std::clamp<std::size_t>(static_cast<std::size_t>(std::max(1.0, f)), 1, cfg_.maxChunkFrames);
 }
 std::size_t BackReverseEngine::latencyFrames() const { return chunkFrames(chunk_); }
-std::vector<std::size_t> BackReverseEngine::makeOrder(std::size_t n) { return buildOrder(cfg_.orderMode,n,cfg_.randomSeed,userOrder_); }
+std::vector<std::size_t> BackReverseEngine::makeOrder(std::size_t n) {
+    if(cfg_.orderMode==OrderMode::UserPattern && !userPatternText_.empty())
+        return buildOrder(cfg_.orderMode,n,cfg_.randomSeed,parseUserPattern(userPatternText_,n,cfg_.randomSeed));
+    return buildOrder(cfg_.orderMode,n,cfg_.randomSeed,userOrder_);
+}
 
 float BackReverseEngine::interpolate(std::span<const float> d,std::size_t channels,std::size_t ch,double frame) {
     if (d.empty()||channels==0) return 0.0f;

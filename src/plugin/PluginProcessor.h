@@ -46,6 +46,8 @@ public:
     bool gateForwardState(int index) const;
     int activeGateCount() const;
     void randomize(std::uint64_t seed);
+    void setUserPatternText(const juce::String& text);
+    juce::String userPatternText() const;
     void syncEngineFromParameters();
 
 private:

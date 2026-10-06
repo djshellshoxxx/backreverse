@@ -8,6 +8,7 @@
 #include <optional>
 #include <random>
 #include <span>
+#include <string>
 #include <vector>
 
 namespace br {
@@ -76,6 +77,7 @@ public:
     void setReverseMode(ReverseMode mode) noexcept { cfg_.reverseMode=mode; }
     void setOrderMode(OrderMode mode);
     void setUserOrder(std::vector<int> order);
+    void setUserPatternText(std::string text) { userPatternText_=std::move(text); }
     void setRandomSeed(std::uint64_t seed);
     void setEffects(EffectSettings settings);
     void setScratchState(ScratchState state);
@@ -85,7 +87,7 @@ public:
     void processLive(std::span<const float> inputInterleaved, std::span<float> outputInterleaved);
     float scrubSample(const std::vector<float>& interleaved, std::size_t channels, std::size_t channel, double positionFrames) const;
 private:
-    EngineConfig cfg_; ChunkParams chunk_; std::vector<ChunkParams> pattern_; std::vector<int> userOrder_; EffectSettings fx_; ScratchState scratch_;
+    EngineConfig cfg_; ChunkParams chunk_; std::vector<ChunkParams> pattern_; std::vector<int> userOrder_; std::string userPatternText_; EffectSettings fx_; ScratchState scratch_;
     float dry_ {0.0f}; float wet_ {1.0f}; std::mt19937_64 rng_;
     std::vector<float> liveCapture_,livePlayback_; std::size_t captureFrames_ {0},playbackFrame_ {0}; bool playbackReady_ {false};
     std::vector<float> delayBuffer_; std::size_t delayWrite_ {0}; std::vector<float> echoBuffer_; std::size_t echoWrite_ {0};

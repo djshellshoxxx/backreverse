@@ -39,6 +39,7 @@ private:
 
     juce::Label title,status,latencyLabel;
     juce::TextButton load{"Load Audio"},play{"Pause"},random{"Randomize"},help{"Help"};
+    juce::TextEditor patternText;
     juce::ComboBox reverseMode,orderMode,timeMode,polarity,syncDivision,gateSteps,gateShape,gapMode,fxOrder;
     juce::Slider chunk,ratio,pan,phase,dry,wet,gateWidth,gateGap;
     juce::ToggleButton swap{"Swap L/R"},hostSync{"Host Sync"},stutter{"Stutter"},delay{"Delay"},echo{"Echo"};
