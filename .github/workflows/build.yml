@@ -40,19 +40,17 @@ jobs:
       - name: Unit, DSP and state tests
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Validate VST3 (pluginval, strictness 5)
-        shell: pwsh
+        shell: bash
         run: |
-          Invoke-WebRequest https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip -OutFile pluginval.zip
-          Expand-Archive pluginval.zip -DestinationPath pluginval
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip
+          unzip -oq pluginval.zip -d pluginval
           ./pluginval/pluginval.exe --strictness-level 5 --skip-gui-tests --timeout-ms 600000 --validate "build/src/plugin/BackReverse_artefacts/Release/VST3/BackReverse.vst3"
-          if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Validate CLAP (clap-validator)
-        shell: pwsh
+        shell: bash
         run: |
-          Invoke-WebRequest https://github.com/free-audio/clap-validator/releases/download/0.3.2/clap-validator-0.3.2-windows.zip -OutFile cv.zip
-          Expand-Archive cv.zip -DestinationPath cv
-          $exe = Get-ChildItem -Recurse cv -Filter clap-validator.exe | Select-Object -First 1
-          & $exe.FullName validate "build/src/plugin/BackReverse_artefacts/Release/CLAP/BackReverse.clap" --only-failed
+          curl -sSL -o cv.zip https://github.com/free-audio/clap-validator/releases/download/0.3.2/clap-validator-0.3.2-windows.zip
+          unzip -oq cv.zip -d cv
+          "$(find cv -name clap-validator.exe | head -1)" validate "build/src/plugin/BackReverse_artefacts/Release/CLAP/BackReverse.clap" --only-failed
       - name: Package
         shell: pwsh
         run: |
