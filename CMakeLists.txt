@@ -1,0 +1,25 @@
+cmake_minimum_required(VERSION 3.22)
+project(BackReverse VERSION 0.0.1 LANGUAGES C CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+if(MSVC)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
+option(BR_BUILD_PLUGIN "Build VST3/CLAP/Standalone (needs JUCE)" ON)
+option(BR_BUILD_TESTS "Build core DSP tests" ON)
+
+add_library(br_core STATIC src/core/Engine.cpp)
+target_include_directories(br_core PUBLIC src/core)
+
+if(BR_BUILD_TESTS)
+  enable_testing()
+  add_executable(br_core_tests tests/core_tests.cpp)
+  target_link_libraries(br_core_tests PRIVATE br_core)
+  add_test(NAME core COMMAND br_core_tests)
+endif()
+
+if(BR_BUILD_PLUGIN)
+  add_subdirectory(src/plugin)
+endif()
