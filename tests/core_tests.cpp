@@ -322,10 +322,72 @@ static void phaseRotatorAllPass()
     }
 }
 
+// Spec 06 s11-12: delay, echo and stutter numeric acceptance. Effects enable through a 10 ms ramp, so the
+// test impulse sits at sample 3000 rather than 0.
+static std::vector<float> impulseAt (int n, int at) { std::vector<float> v ((size_t) n, 0.0f); v[(size_t) at] = 0.5f; return v; }
+static int peakIn (const std::vector<float>& v, int from, int to, float& pk)
+{
+    int at = from; pk = 0;
+    for (int i = from; i < to && i < (int) v.size(); ++i) if (std::fabs (v[(size_t) i]) > pk) { pk = std::fabs (v[(size_t) i]); at = i; }
+    return at;
+}
+static void delayEchoStutter()
+{
+    const int N = 40000, I0 = 3000;
+    auto fwd = [N] (Rig& r) { r.chunkFrames (N); r.P.revMode = RevMode::Forward; r.P.mix = 1; };
+    { // free-time delay: a 100 ms echo, no feedback
+        Rig r (48000); r.file (impulseAt (N, I0)); fwd (r); r.P.dlyOn = true; r.P.dlyTimeL = 100; r.P.dlyTimeR = 100; r.P.dlyFb = 0; r.P.dlyMix = 1; r.P.dlyLP = 20000; r.P.dlyHP = 20; r.play();
+        auto o = r.run (N); float pk; const int at = peakIn (o, I0 + 100, N, pk);
+        CHECK (std::abs (at - (I0 + 4800)) <= 3 && pk > 0.2f, "delay 100 ms echo at " + std::to_string (at));
+    }
+    { // tempo sync: 1/4 note at the default 120 BPM is 500 ms
+        Rig r (48000); r.file (impulseAt (N, I0)); fwd (r); r.P.dlyOn = true; r.P.dlySync = 16; r.P.dlyFb = 0; r.P.dlyMix = 1; r.P.dlyLP = 20000; r.P.dlyHP = 20; r.play();
+        auto o = r.run (N); float pk; const int at = peakIn (o, I0 + 100, N, pk);
+        CHECK (std::abs (at - (I0 + 24000)) <= 3 && pk > 0.2f, "delay 1/4 sync echo at " + std::to_string (at));
+    }
+    { // ping-pong: a left-only impulse echoes to the right channel at twice the delay time
+        std::vector<float> L = impulseAt (N, I0), R ((size_t) N, 0.0f);
+        Rig r (48000); r.file (L); r.fr = R; r.sb.R = r.fr.data(); fwd (r);
+        r.P.dlyOn = true; r.P.dlyTimeL = 100; r.P.dlyTimeR = 100; r.P.dlyFb = 0.5f; r.P.dlyMix = 1; r.P.dlyPing = true; r.P.dlyLP = 20000; r.P.dlyHP = 20; r.play();
+        std::vector<float> oR; auto oL = r.run (N, 512, nullptr, &oR);
+        float pkL, pkR, pkRearly; const int atL = peakIn (oL, I0 + 100, I0 + 7000, pkL);
+        peakIn (oR, I0 + 1000, I0 + 7000, pkRearly); const int atR = peakIn (oR, I0 + 7000, N, pkR);
+        CHECK (std::abs (atL - (I0 + 4800)) <= 3 && pkL > 0.1f, "ping-pong first echo on left at " + std::to_string (atL));
+        CHECK (std::abs (atR - (I0 + 9600)) <= 3 && pkR > 0.05f && pkRearly < 0.01f, "ping-pong second echo on right only at " + std::to_string (atR));
+    }
+    { // feedback at 95% with cross-feedback: bounded and finite on constant input
+        std::vector<float> one ((size_t) N, 0.5f); Rig r (48000); r.file (one); fwd (r);
+        r.P.dlyOn = true; r.P.dlyTimeL = 50; r.P.dlyTimeR = 50; r.P.dlyFb = 0.95f; r.P.dlyXfb = 0.5f; r.P.dlyMix = 1; r.play();
+        auto o = r.run (N); bool ok = true; float pk = 0; for (float v : o) { ok = ok && std::isfinite (v); pk = std::max (pk, std::fabs (v)); }
+        CHECK (ok && pk < 2.0f, "delay feedback 95% + cross stays bounded: " + std::to_string (pk));
+    }
+    { // echo: 300 ms repeat with 50% feedback, clean character, no modulation
+        Rig r (48000); r.file (impulseAt (N, I0)); fwd (r);
+        r.P.echoOn = true; r.P.echoTime = 300; r.P.echoFb = 0.5f; r.P.echoMix = 1; r.P.echoChar = EchoChar::Clean; r.P.echoWow = 0; r.P.echoDrift = 0;
+        r.P.echoSpread = 0; r.P.echoDecay = 0; r.P.echoTone = 1; r.play();
+        auto o = r.run (N); float pk1, pk2; const int at1 = peakIn (o, I0 + 100, I0 + 20000, pk1); peakIn (o, I0 + 20000, N, pk2);
+        CHECK (std::abs (at1 - (I0 + 14400)) <= 3 && pk1 > 0.1f, "echo 300 ms at " + std::to_string (at1));
+        CHECK (pk2 > 0.03f && pk2 < pk1, "echo repeats with decaying level: " + std::to_string (pk2) + " < " + std::to_string (pk1));
+    }
+    { // stutter: a 100 ms slice is captured then repeated inside each 400 ms period; repeats are repeats match to within the FX enable ramp (1e-4)
+        Rig r (48000); r.file (ramp (N)); fwd (r); r.P.stutOn = true; r.P.stutPeriodMs = 400; r.P.stutLenMs = 100; r.P.stutRepeats = 4; r.P.stutDecay = 0; r.P.stutWet = 1; r.P.stutDry = 0; r.play();
+        auto o = r.run (N); int repeated = 0, changed = 0;
+        for (int t = 0; t + 4800 < N; ++t) { if (std::fabs (o[(size_t) (t + 4800)] - o[(size_t) t]) < 1e-4f) ++repeated; else ++changed; }
+        CHECK (repeated > 3000, "stutter repeats a captured slice (" + std::to_string (repeated) + " identical samples)");
+        CHECK (changed > 1000, "stutter pass-through before the repeats");
+    }
+    { // stutter direction: reverse repeats play the captured slice backwards (the ramp falls during repeats)
+        Rig r (48000); r.file (ramp (N)); fwd (r); r.P.stutOn = true; r.P.stutPeriodMs = 400; r.P.stutLenMs = 100; r.P.stutRepeats = 4; r.P.stutDecay = 0; r.P.stutWet = 1; r.P.stutDry = 0; r.P.stutDir = StutDir::Reverse; r.play();
+        auto o = r.run (N); int falling = 0;
+        for (int t = 24500; t < 33000; ++t) if (o[(size_t) (t + 1)] < o[(size_t) t] - 1e-7f) ++falling;
+        CHECK (falling > 7000, "stutter reverse direction plays the slice backwards (" + std::to_string (falling) + " falling samples)");
+    }
+}
+
 int main()
 {
     reverseCorrectness(); productExamples(); fractionalChunks(); blockSizes(); rateAndStretch(); temporalPattern();
-    determinism(); gates(); gateEnvelopeAppliedOnce(); panPhase(); phaseRotatorAllPass(); safetyAndFx(); scrub(); latency();
+    determinism(); gates(); gateEnvelopeAppliedOnce(); panPhase(); phaseRotatorAllPass(); delayEchoStutter(); safetyAndFx(); scrub(); latency();
     std::printf ("%d/%d checks passed\n", checks - failures, checks);
     return failures ? 1 : 0;
 }

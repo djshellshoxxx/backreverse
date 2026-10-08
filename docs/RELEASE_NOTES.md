@@ -34,6 +34,9 @@ The standalone and plug-ins need `libasound2` (ALSA), `libfreetype6` and `libfon
 - **Host block sizes**: host blocks longer than the size prepared at start-up are processed in engine-sized slices, keeping the reverse scheduler on the host timeline.
 - **Interface**: Variation Amount on the Patterns tab is no longer clipped, long knob labels scale instead of truncating, the curve-editor caption no longer overlaps the curve, and the randomiser can choose the Custom gate shape.
 - **Performance**: the preset folder is scanned about every two seconds instead of 30 times a second, and the Delay and Echo filters no longer recalculate coefficients every sample.
+- **Delay and echo**: the time smoothers start at the set time instead of gliding up from zero, so the first repeat lands where it should.
+- **Stutter**: forward repeats are exactly one slice long; they previously drifted one sample per repeat.
+- **Thread safety**: the pattern hand-off between the editor and the audio thread no longer relies on a formal data race.
 - **Look**: tabs have a clear active state (accent underline) and the header and panels are aligned.
 
 ### Known limitations (beta)
@@ -44,7 +47,7 @@ The standalone and plug-ins need `libasound2` (ALSA), `libfreetype6` and `libfon
 - macOS builds are not published yet.
 
 ### Testing in this release
-- DSP acceptance tests: 114 checks pass (reverse order, chunk boundaries, fractional chunks, block sizes, rate and stretch, patterns, determinism, gates, pan and phase, FX, scrub, latency).
+- DSP acceptance tests: 124 checks pass (reverse order, chunk boundaries, fractional chunks, block sizes, rate and stretch, patterns, determinism, gates, pan and phase, delay, ping-pong, tempo-synced delay, echo, feedback bounds, stutter, scrub, latency).
 - State round trip test passes.
 - Linux VST3: pluginval strictness 5 passes (`--skip-gui-tests`). Linux CLAP: clap-validator 0.3.2 runs 21 tests, 16 pass, 0 fail, 5 skipped. Windows validation runs in CI on the release build.
 - Linux standalone starts and runs under a virtual display. Host-DAW testing (insert, save/reopen, automation, tempo change, transport seek, loop, offline render, freeze/bounce) has **not** been completed for this beta. Please report host-specific problems in the issue tracker.

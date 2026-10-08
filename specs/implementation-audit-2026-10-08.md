@@ -22,6 +22,9 @@ Build and test environment: Ubuntu 24.04 container, GCC 13.3, CMake 3.28, Ninja,
 | A10 | UI, gate curve | The curve editor caption overlapped the top control point | Rendered Gates tab | Caption moved to the bottom edge |
 | A11 | UI, tabs | Tabs were plain labels with no active-state indication | Rendered tab bar | Accent underline on the active page, hover state and themed bar background |
 | A12 | Version | The editor title tooltip hard-coded "0.0.1" and the version was spread over four files | `grep` for the version string | Tooltip uses `BR_VERSION_STRING`; single source in `CMakeLists.txt`; 0.0.2 in CI, installer and release notes |
+| A14 | Threading | `SeqBox` copied its payload with plain `memcpy` under the sequence counter, a formal data race | Code review against the C++ memory model | Payload stored as relaxed atomic words with fenced sequence check; `static_assert` for trivially copyable payloads |
+| A15 | Delay/Echo | Time smoothers started at 0 and glided to the set time, so the first echo arrived at the wrong time | `delayEchoStutter` impulse tests (tempo-sync and free-time echoes) | Smoothers prime to the target on first use after reset |
+| A16 | Stutter | Forward repeats restarted one sample early (4799-sample repeats), so each repeat drifted one sample against the captured slice | Probe: repeat k+1 matched captured index +1 | Forward repeats restart at exactly one slice length |
 | A13 | CI | The planned CLAP validator install (`cargo install clap-validator --version 0.3.2`) fails because that version is not on crates.io | `cargo install` returns "could not find clap-validator with version =0.3.2" | CI installs from the upstream git tag `0.3.2` |
 
 ## 2. Findings verified correct (no change)
@@ -56,16 +59,16 @@ Build and test environment: Ubuntu 24.04 container, GCC 13.3, CMake 3.28, Ninja,
 
 | # | Area | Item | Risk | Plan |
 |---|---|---|---|---|
-| O1 | Threading | `SeqBox` copies its payload with `memcpy` under a sequence counter. This is a formal data race on plain memory, although the reader discards torn reads | Low in practice, undefined in the C++ model | Replace the payload with atomics or a double-buffer with a retired slot; run ThreadSanitizer in CI (spec 06 §18) |
+| O1 | Threading | Closed by A14. ThreadSanitizer run in CI is still open under O2 | — | — |
 | O2 | Threading | No allocation-hook or sanitiser build runs in CI | Unknown realtime regressions could slip in | Add a debug job with ASan and UBSan, and an allocation counter around `processBlock` |
 | O3 | Hosts | No multi-host acceptance pass in this release | Host-specific state, automation or latency issues are unverified | Run the spec 06 §17 scenarios in at least one DAW per platform before a stable release |
 | O4 | Long runs | No soak test | Memory stability over hours is unproven | Add a soak harness for spec 06 §19 |
 | O5 | Features | Parallel buses and duplicate FX instances (spec 02 §9–10), stretch transient and formant controls (spec 01 §8) | Spec gap | Listed in spec 08 §7 |
-| O6 | Tests | Stutter per-scope matrix, delay and echo tempo-sync numeric tests (spec 06 §11–12) | Partial coverage | Add to `tests/core_tests.cpp` |
+| O6 | Tests | Stutter per-scope matrix (selected chunk and gate scopes) not yet enumerated | Partial coverage | Add to `tests/core_tests.cpp` |
 
 ## 5. Verification performed for this release
 
-- `br_core_tests`: 114 of 114 checks pass, including the new `gateEnvelopeAppliedOnce` and `phaseRotatorAllPass` tests.
+- `br_core_tests`: 124 of 124 checks pass, including the gate, phase, delay, ping-pong, tempo-sync, echo, feedback, stutter repeat and stutter reverse tests.
 - `BackReverseStateTest`: passes.
 - Full Linux build of `BackReverse_VST3`, `BackReverse_CLAP`, `BackReverse_Standalone`, `br_core_tests` and `BackReverseStateTest` on GCC 13.3 with no errors.
 - GUI rendering: every editor tab was rendered under Xvfb from the built processor and editor, before and after the UI changes, and inspected for clipping and overlap.

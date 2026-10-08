@@ -144,15 +144,15 @@ Code references use `src/core/Engine.cpp` (engine), `src/core/Fx.h` (effects), `
 | Random determinism (§8) | Done | Repeat, seed sensitivity, block-size independence |
 | Gate tests (§9) | Done | Step counts, disabled cells, shapes, gaps, forward override, single envelope application |
 | Pan and phase (§10) | Done | Swap, mirror, polarity, all-pass magnitude, L/R offset |
-| Stutter (§11) | Partial | Dry-only and bounded output tested. Per-scope and direction-mode matrix not fully enumerated |
-| Delay and echo (§12) | Partial | Feedback stability and finiteness tested. Tempo sync and ping-pong numeric tests not yet written |
+| Stutter (§11) | Partial | Repeat timing and sample-exact slice repeats, forward and reverse direction, dry-only and bounded output tested. Selected chunk and gate scope matrix not enumerated |
+| Delay and echo (§12) | Done | Free-time and tempo-sync echo timing, ping-pong channel routing, echo repeat timing and decay, 95% feedback bounds |
 | Effect-chain routing (§13) | Done | Chain order changes output |
 | Scrub (§14) | Done | Seek, drag, release, rapid direction changes |
 | Latency (§15) | Done | Availability, displayed latency, aligned dry, fixed maximum |
 | State round trip (§16) | Done | `BackReverseStateTest` |
 | pluginval, clap-validator (§17) | Done (this release) | See spec 07 §5 for results |
 | Multi-host tests (§17) | Not implemented | Required before stable; beta notes must list hosts actually tested |
-| Realtime-safety instrumentation (§18) | Not implemented | No sanitiser or allocation-hook build in CI yet |
+| Realtime-safety instrumentation (§18) | Partial | Shared-state handoff is race-free by construction (atomic words). No sanitiser or allocation-hook build in CI yet |
 | Long-run stability (§19) | Not implemented | Requires a soak harness; planned |
 
 ## 7. Open items, ordered by release impact
@@ -162,5 +162,5 @@ Code references use `src/core/Engine.cpp` (engine), `src/core/Fx.h` (effects), `
 3. Long-run soak test with live input and maximum gate count (spec 06 §19).
 4. Stretch: transient sensitivity, formant preservation, stretch-state crossfade.
 5. Parallel buses (spec 02 §10) and duplicate FX instances (spec 02 §9).
-6. Delay and echo numeric acceptance tests (spec 06 §12).
+6. Stutter selected-chunk and selected-gate scope tests (spec 06 §11).
 7. macOS targets (spec 04 §11).

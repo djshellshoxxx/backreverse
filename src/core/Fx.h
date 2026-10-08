@@ -114,7 +114,7 @@ struct Stutter
             float b = buf[1][(size_t) i0] + f * (buf[1][(size_t) i1] - buf[1][(size_t) i0]);
             sl = a * gain * env; sr2 = b * gain * env;
             rpos += rev ? -rate : rate;
-            if (rpos < 0 || rpos >= len - 1)
+            if (rev ? rpos < 0 : rpos >= len) // each repeat is exactly one slice long in both directions
             {
                 if (++repeat >= P.stutRepeats) state = 0; else startRepeat (P, c);
             }
@@ -140,9 +140,9 @@ struct Stutter
 
 struct Delay
 {
-    DelayLine dl; OnePole lp[2], hp[2]; double ph = 0; float fbL = 0, fbR = 0; Smooth tL, tR;
+    DelayLine dl; OnePole lp[2], hp[2]; double ph = 0; float fbL = 0, fbR = 0; Smooth tL, tR; bool primed = false;
     void prepare (double sr) { dl.prepare ((int) (sr * 4.2) + 16); reset(); tL.setTime (sr, 80); tR.setTime (sr, 80); }
-    void reset() { dl.clear(); fbL = fbR = 0; ph = 0; for (auto& f : lp) f.z = 0; for (auto& f : hp) f.z = 0; }
+    void reset() { dl.clear(); fbL = fbR = 0; ph = 0; primed = false; for (auto& f : lp) f.z = 0; for (auto& f : hp) f.z = 0; }
     void process (float& l, float& r, float send, const EngineParams& P, const FxContext& c)
     {
         const double sr = c.sr;
@@ -150,8 +150,10 @@ struct Delay
         if (P.dlySync > 0) tl = tr = noteBeats (P.dlySync) * 60000.0 / std::max (1.0, c.bpm);
         ph += P.dlyModRate / sr; if (ph >= 1) ph -= 1;
         const float mod = (float) (std::sin (2 * 3.14159265358979 * ph) * P.dlyModDepth * 0.004 * sr);
-        const float dL = tL.step ((float) (std::min (tl, 4000.0) * 0.001 * sr)) + mod;
-        const float dR = tR.step ((float) (std::min (tr, 4000.0) * 0.001 * sr)) - mod;
+        const float tgtL = (float) (std::min (tl, 4000.0) * 0.001 * sr), tgtR = (float) (std::min (tr, 4000.0) * 0.001 * sr);
+        if (! primed) { tL.reset (tgtL); tR.reset (tgtR); primed = true; } // start at the set time, not glide up from 0
+        const float dL = tL.step (tgtL) + mod;
+        const float dR = tR.step (tgtR) - mod;
         float yl = dl.read (0, dL), yr = dl.read (1, dR);
         for (int k = 0; k < 2; ++k) { lp[k].setHz (sr, P.dlyLP); hp[k].setHz (sr, P.dlyHP); }
         yl = hp[0].hp (lp[0].lp (yl)); yr = hp[1].hp (lp[1].lp (yr));
@@ -173,9 +175,9 @@ struct Delay
 struct Echo
 {
     DelayLine dl; OnePole damp[2], tone[2], dubHp[2]; double wow = 0, flt = 0, drift = 0, driftT = 0; float holdL = 0, holdR = 0; int holdN = 0;
-    i64 n = 0; Smooth tS;
+    i64 n = 0; Smooth tS; bool primed = false;
     void prepare (double sr) { dl.prepare ((int) (sr * 2.5) + 16); tS.setTime (sr, 120); reset(); }
-    void reset() { dl.clear(); wow = flt = drift = driftT = 0; holdL = holdR = 0; holdN = 0; n = 0; for (auto* a : { damp, tone, dubHp }) { a[0].z = a[1].z = 0; } }
+    void reset() { dl.clear(); wow = flt = drift = driftT = 0; holdL = holdR = 0; holdN = 0; n = 0; primed = false; for (auto* a : { damp, tone, dubHp }) { a[0].z = a[1].z = 0; } }
     void process (float& l, float& r, float send, const EngineParams& P, const FxContext& c)
     {
         const double sr = c.sr; ++n;
@@ -187,7 +189,9 @@ struct Echo
         if ((n & 1023) == 0) driftT = (hashUnit (c.seed, dEcho, n >> 10) * 2 - 1) * P.echoDrift;
         drift += (driftT - drift) * 0.0005;
         const double modMs = wowAmt * (2.5 * std::sin (2 * 3.14159265358979 * wow) + 0.4 * std::sin (2 * 3.14159265358979 * flt)) + drift * 6.0;
-        const float base = tS.step ((float) (t * 0.001 * sr));
+        const float tgtS = (float) (t * 0.001 * sr);
+        if (! primed) { tS.reset (tgtS); primed = true; }
+        const float base = tS.step (tgtS);
         const float sp = P.echoSpread * 0.25f * base;
         float yl = dl.read (0, base + (float) (modMs * 0.001 * sr) - sp * 0.5f);
         float yr = dl.read (1, base + (float) (modMs * 0.001 * sr) + sp * 0.5f);
