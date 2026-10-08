@@ -17,8 +17,14 @@ struct Smooth
 
 struct OnePole // simple lowpass; hp() derived
 {
-    float z = 0, c = 1;
-    void setHz (double sr, double hz) { c = (float) (1.0 - std::exp (-2.0 * 3.14159265358979 * std::min (hz, sr * 0.49) / sr)); }
+    float z = 0, c = 1; double hzCached = -1, srCached = -1;
+    // Coefficients are only recomputed when the cutoff or rate changes (setHz is called every sample by Delay/Echo).
+    void setHz (double sr, double hz)
+    {
+        if (hz == hzCached && sr == srCached) return;
+        hzCached = hz; srCached = sr;
+        c = (float) (1.0 - std::exp (-2.0 * 3.14159265358979 * std::min (hz, sr * 0.49) / sr));
+    }
     float lp (float x) { z += c * (x - z); return z; }
     float hp (float x) { return x - lp (x); }
 };

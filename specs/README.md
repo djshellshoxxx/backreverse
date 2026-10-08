@@ -11,6 +11,10 @@ This directory defines the required behavior of BackReverse.
 - [04-plugin-standalone-host.md](04-plugin-standalone-host.md) — VST3, CLAP, standalone, transport, synchronization, latency and rendering
 - [05-parameters-presets-state.md](05-parameters-presets-state.md) — stable parameters, automation, presets, deterministic random state and migration
 - [06-testing-acceptance.md](06-testing-acceptance.md) — unit, DSP, host, realtime, state and release acceptance tests
+- [07-release-packaging.md](07-release-packaging.md) — release identity, Windows and Linux artifacts, build requirements, validation gates, publishing rules
+- [08-implementation-status.md](08-implementation-status.md) — requirement-by-requirement status matrix with the open items that gate 1.0
+- [implementation-audit-2026-10-06.md](implementation-audit-2026-10-06.md) — earlier audit and its resolution
+- [implementation-audit-2026-10-08.md](implementation-audit-2026-10-08.md) — audit for the 0.0.2 beta: findings, fixes and open items
 
 ## Normative language
 

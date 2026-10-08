@@ -282,10 +282,50 @@ static void latency()
     auto o3 = re.run (8); CHECK (same (o3, S ({ 7, 6, 5, 4, 3, 2, 1, 0 })), "reverse chunk order of reversed chunks -> " + str (o3, 8));
 }
 
+// Regression (audit 2026-10-08): the gate envelope was applied twice in Silence gaps, squaring shaped gains.
+// A half-amplitude constant through a linear-in gate at mid-cell must come out at 0.5 x 0.5 = 0.25, not 0.125.
+static void gateEnvelopeAppliedOnce()
+{
+    Rig g (48000); std::vector<float> half (8000, 0.5f); g.file (half); g.chunkFrames (4000);
+    g.P.gateOn = true; g.P.gateSteps = 2; g.P.gateWidth = 1; g.P.gateShape = Shape::LinIn; g.P.gapMode = GapMode::Silence; g.play();
+    auto o = g.run (6000);
+    CHECK (std::fabs (o[3000] - 0.25f) < 0.01f, "shaped gate applied once (silence gap mode): " + std::to_string (o[3000]));
+}
+
+// Phase rotation is an all-pass Hilbert design (spec 01 s12 / spec 04 s8). Its magnitude must be exactly flat and
+// the left/right offset must be exact; the common all-pass colouration at 0 degrees is documented, not hidden.
+static void phaseRotatorAllPass()
+{
+    const int N = 48000; std::vector<float> sine ((size_t) N);
+    for (double f : { 200.0, 1000.0, 5000.0 })
+    {
+        for (int i = 0; i < N; ++i) sine[(size_t) i] = (float) (0.5 * std::sin (2.0 * 3.14159265358979 * f * i / 48000.0));
+        Rig r (48000); r.file (sine); r.chunkFrames (4000); r.P.revMode = RevMode::Forward; r.P.phaseMode = PhaseMode::RotateBoth; r.P.phaseDeg = 0; r.play();
+        std::vector<float> outR; auto o = r.run (N, 512, nullptr, &outR); float pk = 0;
+        for (int i = 12000; i < 24000; ++i) pk = std::max (pk, std::fabs (o[(size_t) i]));
+        CHECK (std::fabs (pk / 0.5f - 1.0f) < 0.01f, "phase rotator magnitude flat at " + std::to_string ((int) f) + " Hz: " + std::to_string (pk));
+    }
+    // L/R offset: right is rotated 90 degrees relative to left, measured as the phase of each channel at 1 kHz
+    for (double f : { 1000.0, 3000.0 })
+    {
+        for (int i = 0; i < N; ++i) sine[(size_t) i] = (float) (0.5 * std::sin (2.0 * 3.14159265358979 * f * i / 48000.0));
+        Rig r (48000); r.file (sine); r.chunkFrames (4000); r.P.revMode = RevMode::Forward; r.P.phaseMode = PhaseMode::LROffset; r.P.phaseDeg = 90; r.play();
+        std::vector<float> outR; auto oL = r.run (N, 512, nullptr, &outR);
+        auto phaseOf = [&] (const std::vector<float>& v)
+        {
+            double c = 0, s = 0; const double w = 2.0 * 3.14159265358979 * f / 48000.0;
+            for (int i = 12000; i < 24000; ++i) { c += v[(size_t) i] * std::cos (w * i); s += v[(size_t) i] * std::sin (w * i); }
+            return std::atan2 (s, c) * 180.0 / 3.14159265358979;
+        };
+        double d = phaseOf (outR) - phaseOf (oL); while (d > 180) d -= 360; while (d < -180) d += 360;
+        CHECK (std::fabs (std::fabs (d) - 90.0) < 3.0, "L/R offset 90 degrees at " + std::to_string ((int) f) + " Hz: " + std::to_string (d));
+    }
+}
+
 int main()
 {
     reverseCorrectness(); productExamples(); fractionalChunks(); blockSizes(); rateAndStretch(); temporalPattern();
-    determinism(); gates(); panPhase(); safetyAndFx(); scrub(); latency();
+    determinism(); gates(); gateEnvelopeAppliedOnce(); panPhase(); phaseRotatorAllPass(); safetyAndFx(); scrub(); latency();
     std::printf ("%d/%d checks passed\n", checks - failures, checks);
     return failures ? 1 : 0;
 }
