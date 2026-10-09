@@ -273,12 +273,12 @@ struct BackReverseEditor::Content : public Component
     Inspector* inspector = nullptr; GateEditor* gates = nullptr; Platter* platter = nullptr; ChainStrip* chain = nullptr;
     std::vector<StepLane*> lanesToRepaint; std::vector<LenSpin*> spins; TextEditor* helpText = nullptr; Slider* randAmt = nullptr;
     OwnedArray<ToggleButton> randDomains; ToggleButton* randLock = nullptr;
-    std::unique_ptr<FileChooser> fc; int lastPresetCount = -1;
+    std::unique_ptr<FileChooser> fc; int lastPresetCount = -1; unsigned presetTick = 0;
 
     explicit Content (BackReverseProcessor& pr) : p (pr)
     {
         title.setText ("BackReverse", dontSendNotification); title.setFont (FontOptions (22.0f, Font::bold)); title.setColour (Label::textColourId, col::accent);
-        title.setTooltip ("BackReverse 0.0.1 beta by Circuit Drift Labs");
+        title.setTooltip (String ("BackReverse ") + BR_VERSION_STRING + " beta by Circuit Drift Labs");
         addAndMakeVisible (title);
         presets.setTooltip ("Factory and user presets. Loading is undoable."); presets.onChange = [this] { if (presets.getSelectedItemIndex() >= 0) p.loadPreset (presets.getSelectedItemIndex()); };
         addAndMakeVisible (presets); refreshPresets();
@@ -309,14 +309,16 @@ struct BackReverseEditor::Content : public Component
         meter.setTooltip ("Output level");
         addAndMakeVisible (wave);
         wave.onSelect = [this] (int64 a, int64 b) { if (inspector) inspector->setSelection (a, b); };
-        tabs.setTabBarDepth (28); tabs.setOutline (0);
+        tabs.setTabBarDepth (30); tabs.setOutline (0);
         buildPages();
         tabs.setCurrentTabIndex (jlimit (0, tabs.getNumTabs() - 1, (int) p.ui (lk::uiTab, 0)));
         addAndMakeVisible (tabs);
     }
 
-    void refreshPresets()
+    // A rescan touches the preset folder, so the 30 Hz UI tick only re-selects the current entry (see tick()).
+    void refreshPresets (bool rescan = true)
     {
+        if (! rescan) { presets.setSelectedItemIndex (p.currentPreset, dontSendNotification); return; }
         auto names = p.presetNames();
         if (names.size() == lastPresetCount) { presets.setSelectedItemIndex (p.currentPreset, dontSendNotification); return; }
         lastPresetCount = names.size(); presets.clear (dontSendNotification); presets.addItemList (names, 1); presets.setSelectedItemIndex (p.currentPreset, dontSendNotification);
@@ -407,7 +409,7 @@ struct BackReverseEditor::Content : public Component
             auto* sp = spin (pg, "Size list entries", 1, br::kSizes, [this] { return p.pats.sizeCount; }, [withPats] (int v) { withPats ([v] (br::Patterns& q) { q.sizeCount = v; }); });
             auto* cp = pg->make (std::make_unique<CopyPaste> (p, "chunk", "chunk pattern (order, sizes, chunk lane)"));
             pg->onResize = [=] { auto b = pg->getLocalBounds().reduced (6); pe->setBounds (b.removeFromTop (230)); b.removeFromTop (8);
-                auto left = b.removeFromLeft (330); sz->setBounds (left.removeFromTop (90)); left.removeFromTop (6); sp->setBounds (left.removeFromTop (24)); left.removeFromTop (6); cp->setBounds (left.removeFromTop (26).withWidth (160));
+                auto left = b.removeFromLeft (330); sz->setBounds (left.removeFromTop (118)); left.removeFromTop (6); sp->setBounds (left.removeFromTop (24)); left.removeFromTop (6); cp->setBounds (left.removeFromTop (26).withWidth (160));
                 b.removeFromLeft (8); mult->setBounds (b.removeFromTop (b.getHeight() * 6 / 10)); b.removeFromTop (6); wt->setBounds (b); };
             addTab ("Patterns", pg);
         }
@@ -640,7 +642,7 @@ struct BackReverseEditor::Content : public Component
         if (p.capturing()) tl << "CAPTURING " << String (t.captureLen.load() / sr, 1) << " s   ";
         if (! p.isRecording() && ! p.capturing() && p.lastRender != File() && rp < 0) tl << "Rendered: " << p.lastRender.getFileName();
         timeL.setText (tl, dontSendNotification);
-        refreshPresets();
+        refreshPresets (presetTick++ % 60 == 0);   // rescan the preset folder about every 2 s
         p.setUi (lk::uiTab, tabs.getCurrentTabIndex());
     }
 };

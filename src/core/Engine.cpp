@@ -168,7 +168,7 @@ void Engine::prepare (double rate, int mb, double liveSeconds, double captureSec
     for (auto& b : capBuf) b.assign ((size_t) std::max (1.0, captureSeconds * sr), 0.0f);
     stut.prepare (sr); dly.prepare (sr); echo.prepare (sr);
     inG.setTime (sr, 10); outG.setTime (sr, 10); mixS.setTime (sr, 15); bypassS.setTime (sr, 10); swapS.setTime (sr, 15);
-    polL.setTime (sr, 1.5); polR.setTime (sr, 1.5); phaseMix.setTime (sr, 20); gateG.setTime (sr, 0.7); playG.setTime (sr, 4); scrubMix.setTime (sr, 5);
+    polL.setTime (sr, 1.5); polR.setTime (sr, 1.5); phaseMix.setTime (sr, 20); gateG.setTime (sr, 0.7); postS.setTime (sr, 0.5); playG.setTime (sr, 4); scrubMix.setTime (sr, 5);
     for (auto& s : sendS) s.setTime (sr, 3);
     for (auto& s : fxEn) s.setTime (sr, 10);
     peakHopFrames = (int) std::max<i64> (1, ringCap / kPeakHist);
@@ -184,7 +184,7 @@ void Engine::reset()
     needRegrid = true; gridSig = 0; filePlaying = false; fileEnded = false; capLen = 0;
     stut.reset(); dly.reset(); echo.reset(); for (auto& h : hil) h.reset();
     inG.reset (1); outG.reset (1); mixS.reset (1); bypassS.reset (0); panS.reset (0); swapS.reset (0); polL.reset (1); polR.reset (1);
-    phaseMix.reset (0); gateG.reset (1); playG.reset (1); scrubMix.reset (0);
+    phaseMix.reset (0); gateG.reset (1); postS.reset (1); playG.reset (1); scrubMix.reset (0);
     for (auto& s : sendS) s.reset (0);
     for (auto& s : fxEn) s.reset (0);
     for (auto& p : peakHist) p.store (0);
@@ -1010,14 +1010,14 @@ void Engine::process (const float* inL, const float* inR, float* outL, float* ou
         }
 
         // ---- gate gain, gap routing
+        // The gate envelope is applied exactly once, to the FX-chain input. Silence gaps also close the FX output
+        // through a separate smoothed 0/1 gate so tails stop; this never squares the envelope.
         const float gg = gateG.step (gs.on ? (P.gapMode == GapMode::Hold && ! gs.active ? 1.0f : gs.gain) : 1.0f);
-        float pre = gg, post = 1.0f, dryFill = 0.0f;
-        if (gs.on)
-        {
-            if (P.gapMode == GapMode::Silence) post = gg;
-            else if (P.gapMode == GapMode::DryThrough) dryFill = 1.0f - gg;
-        }
-        float cl = wl * pre, cr = wr * pre;
+        const float gapOpen = (gs.on && P.gapMode == GapMode::Silence && ! gs.active) ? 0.0f : 1.0f;
+        const float post = postS.step (gapOpen);
+        float dryFill = 0.0f;
+        if (gs.on && P.gapMode == GapMode::DryThrough) dryFill = 1.0f - gg;
+        float cl = wl * gg, cr = wr * gg;
 
         // ---- FX chain
         FxContext fc; fc.chunkReversed = cur.reversed; fc.chunkStart = chunkStartFlag; fc.gateStart = gs.on && gs.newCell && gs.active;

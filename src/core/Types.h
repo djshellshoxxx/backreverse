@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <type_traits>
 
 namespace br {
 
@@ -152,26 +153,33 @@ struct Patterns
 };
 
 // Single-writer seqlock box: the message thread publishes, the audio thread copies without blocking.
+// The payload is held as relaxed atomic 32-bit words, so a read that overlaps a write is a torn value
+// (rejected by the sequence check) rather than a C++ data race. Writer must be single-threaded.
 template <class T>
 struct SeqBox
 {
+    static_assert (std::is_trivially_copyable<T>::value, "SeqBox payload must be trivially copyable");
+    static constexpr size_t kWords = (sizeof (T) + 3) / 4;
     std::atomic<uint32_t> seq { 0 };
-    T data {};
+    std::atomic<uint32_t> words[kWords] {};
     void write (const T& v)
     {
-        seq.fetch_add (1, std::memory_order_acq_rel);
+        uint32_t w[kWords] {};
+        std::memcpy (w, &v, sizeof (T));
+        seq.store (seq.load (std::memory_order_relaxed) + 1, std::memory_order_relaxed); // odd: write in progress
         std::atomic_thread_fence (std::memory_order_release);
-        std::memcpy ((void*) &data, (const void*) &v, sizeof (T));
-        std::atomic_thread_fence (std::memory_order_release);
-        seq.fetch_add (1, std::memory_order_release);
+        for (size_t i = 0; i < kWords; ++i) words[i].store (w[i], std::memory_order_relaxed);
+        seq.store (seq.load (std::memory_order_relaxed) + 1, std::memory_order_release); // even: published
     }
     bool tryRead (T& out, uint32_t& last) const
     {
         const uint32_t s1 = seq.load (std::memory_order_acquire);
         if ((s1 & 1u) || s1 == last) return false;
-        std::memcpy ((void*) &out, (const void*) &data, sizeof (T));
+        uint32_t w[kWords];
+        for (size_t i = 0; i < kWords; ++i) w[i] = words[i].load (std::memory_order_relaxed);
         std::atomic_thread_fence (std::memory_order_acquire);
         if (seq.load (std::memory_order_relaxed) != s1) return false;
+        std::memcpy ((void*) &out, w, sizeof (T));
         last = s1; return true;
     }
 };
