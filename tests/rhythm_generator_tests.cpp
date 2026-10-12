@@ -1,4 +1,7 @@
 #include "../src/core/RhythmGenerator.h"
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <cstdio>
 using namespace br;
