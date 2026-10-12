@@ -30,7 +30,6 @@ inline void generateRhythm(const RhythmRequest& req, Patterns& pattern)
     for (int i = 0; i < n; ++i) {
         const int at = (i + n - rotation) % n;
         const bool quarter = (4 * at) % n == 0;
-        const bool eighthOffbeat = (8 * at) % n == 4 * (n % 2 == 0 ? 1 : 0);
         const double noise = hashUnit(req.seed, dGate + 700, at);
         bool on = false;
         switch (req.style) {
