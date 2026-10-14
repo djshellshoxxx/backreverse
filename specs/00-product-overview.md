@@ -210,6 +210,12 @@ Possible modes:
 
 If variable phase is implemented, documentation MUST describe whether it is broadband, all-pass based, or frequency dependent.
 
+**Implementation note (BackReverse 0.0.2).** Phase Rotation is broadband and all-pass based. It is built from an IIR Hilbert pair (`src/core/Fx.h`, `struct Hilbert`) whose two outputs have exactly unity magnitude. The rotation is `I·cos θ ± Q·sin θ`, so the magnitude response is flat at every angle. The phase response is the pair's common all-pass phase φ(ω) plus the chosen angle θ. Consequences:
+- At 0° the rotator is not bit-transparent. It applies a fixed, frequency-dependent all-pass phase colouration. Use Phase Rotation = Off to bypass it. The engine fades the rotator in and out over 20 ms.
+- Left/right offset is exact at all frequencies: the right channel is the left channel rotated by the chosen angle.
+- Polarity inversion is a separate processor (`PolMode`) and is never implemented as a phase rotation.
+- The phase colouration is audible mainly on transients. It is documented here rather than hidden because a fixed-latency FIR alternative would shift every file-mode output sample.
+
 ## 10. Processing scope
 
 Reversal, rate/stretch, stereo/pan, phase/polarity, gating, and effects MUST support scopes where meaningful:

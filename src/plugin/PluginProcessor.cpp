@@ -212,7 +212,16 @@ void BackReverseProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&
     const float* inR = ins > 1 ? buffer.getReadPointer (1) : inL;
     float* outL = buffer.getWritePointer (0);
     float* outR = outs > 1 ? buffer.getWritePointer (1) : nullptr;
-    engine.process (inL, inR, outL, outR, n, P, audioPats, h);
+    // The ring slack is sized for the prepared block size, so longer host blocks are split into engine-sized slices.
+    // Each slice advances the host sample position and beat position so the reverse scheduler stays on the timeline.
+    const int slice = jmax (1, engine.maxBlockSize());
+    for (int off = 0; off < n; off += slice)
+    {
+        br::HostInfo hs = h;
+        hs.samplePos += off;
+        if (hs.valid && hs.bpm > 0) hs.ppq += off * hs.bpm / (60.0 * sr);
+        engine.process (inL + off, inR + off, outL + off, outR != nullptr ? outR + off : nullptr, jmin (slice, n - off), P, audioPats, hs);
+    }
     if (auto* w = writer.load (std::memory_order_acquire); w != nullptr && outs >= 2) w->write (buffer.getArrayOfReadPointers(), n);
     blockCounter.fetch_add (1, std::memory_order_release);
     lastBlockMs.store (Time::getMillisecondCounter(), std::memory_order_relaxed);
@@ -277,8 +286,9 @@ std::shared_ptr<LoadedSource> BackReverseProcessor::makeSource (AudioBuffer<floa
         s->buf.setSize (2, jmax (1, outLen));
         for (int ch = 0; ch < 2; ++ch)
         {
+            // The 4-argument overload reads past the end of the input (filter taps); the 6-argument form feeds zeros there.
             WindowedSincInterpolator interp;
-            interp.process (ratio, in.getReadPointer (jmin (ch, in.getNumChannels() - 1)), s->buf.getWritePointer (ch), outLen);
+            interp.process (ratio, in.getReadPointer (jmin (ch, in.getNumChannels() - 1)), s->buf.getWritePointer (ch), outLen, in.getNumSamples(), 0);
         }
     }
     else
@@ -543,7 +553,7 @@ void BackReverseProcessor::randomize (bool reroll)
     }
     if (on (5) && maybe())
     {
-        set (brp::gateOn, 1); choice (brp::gateSteps, 4); choice (brp::gateShape, 8);
+        set (brp::gateOn, 1); choice (brp::gateSteps, 4); choice (brp::gateShape, 9);
         for (auto& g : p.gate) { if (maybe()) g.on = rng.next() > 0.3 ? 1 : 0; if (maybe()) g.dir = (uint8_t) (rng.next() < 0.7 ? 0 : 1 + rng.below (2)); }
     }
     if (on (6) && maybe())

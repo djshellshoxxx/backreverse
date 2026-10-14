@@ -68,6 +68,7 @@ public:
     const float* captureData (int ch) const { return capBuf[ch & 1].data(); }
     int captureCapacity() const { return (int) capBuf[0].size(); }
     int latencyFrames() const { return tel.latency.load(); }
+    int maxBlockSize() const { return maxBlock; }   // block size the ring slack was sized for (prepare)
     bool isFilePlaying() const { return filePlaying; }
     double sampleRate() const { return sr; }
 
@@ -127,7 +128,7 @@ private:
     GrainCloud holdCloud, scrubCloud; bool holding = false; double holdPos = 0;
     bool scrubOn = false; double sp = 0, sv = 0; Smooth scrubMix;
     // processors
-    Smooth inG, outG, mixS, bypassS, panS, swapS, polL, polR, phaseMix, gateG, playG, sendS[3], fxEn[3];
+    Smooth inG, outG, mixS, bypassS, panS, swapS, polL, polR, phaseMix, gateG, postS, playG, sendS[3], fxEn[3];
     Hilbert hil[2]; Stutter stut; Delay dly; Echo echo;
     bool lastHostPlaying = false; i64 expectedHostPos = 0; int peakHopFrames = 1, peakAcc = 0; float peakRun = 0;
     i64 gateAbsCounter = 0;

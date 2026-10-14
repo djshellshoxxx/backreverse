@@ -24,6 +24,24 @@ public:
         setColour (TextEditor::backgroundColourId, col::panel2); setColour (TextEditor::outlineColourId, col::line);
         setColour (PopupMenu::backgroundColourId, col::panel); setColour (PopupMenu::highlightedBackgroundColourId, col::accent.darker (0.4f));
     }
+    // Tabs: flat, with a teal underline on the active page and a subtle hover lift.
+    void drawTabButton (TabBarButton& b, Graphics& g, bool isMouseOver, bool) override
+    {
+        const bool on = b.isFrontTab();
+        auto r = b.getLocalBounds().toFloat().reduced (3.0f, 2.0f);
+        auto underline = r.removeFromBottom (3.0f).reduced (8.0f, 0.0f);
+        g.setColour (on ? col::panel2 : (isMouseOver ? col::panel : col::bg));
+        g.fillRoundedRectangle (r, 6.0f);
+        if (on) { g.setColour (col::accent); g.fillRoundedRectangle (underline, 1.5f); }
+        g.setColour (on ? col::text : col::dim);
+        g.setFont (FontOptions (13.0f, on ? Font::bold : Font::plain));
+        g.drawFittedText (b.getButtonText(), b.getLocalBounds().reduced (6, 0), Justification::centred, 1);
+    }
+    void drawTabbedButtonBarBackground (TabbedButtonBar& bar, Graphics& g) override
+    {
+        g.fillAll (col::bg);
+        g.setColour (col::line); g.fillRect (0, bar.getHeight() - 1, bar.getWidth(), 1);
+    }
     void drawRotarySlider (Graphics& g, int x, int y, int w, int h, float pos, float a0, float a1, Slider& s) override
     {
         auto b = Rectangle<float> ((float) x, (float) y, (float) w, (float) h).reduced (4);
@@ -59,6 +77,7 @@ struct Knob : Component
         s.setTextBoxIsEditable (true); s.setTooltip (tooltipFor (idx)); s.setTitle (d.name); s.setDescription (d.tip);
         s.setColour (Slider::textBoxTextColourId, col::text);
         l.setText (d.name, dontSendNotification); l.setJustificationType (Justification::centred); l.setFont (FontOptions (11.5f)); l.setColour (Label::textColourId, col::dim);
+        l.setMinimumHorizontalScale (0.72f); // long names scale down instead of truncating ("Reverse Probability")
         l.setTooltip (s.getTooltip()); l.setInterceptsMouseClicks (false, false);
         addAndMakeVisible (s); addAndMakeVisible (l);
         a = std::make_unique<AudioProcessorValueTreeState::SliderAttachment> (p.apvts, d.id, s);
@@ -364,7 +383,7 @@ public:
         g.setColour (col::dim.withAlpha (0.5f)); g.strokePath (pre, PathStrokeType (1.0f));
         g.setColour (col::purple); g.strokePath (cur, PathStrokeType (2.0f));
         for (int i = 0; i < q.curveCount; ++i) { auto c = toPx (q.curveX[i], q.curveY[i]); g.setColour (i == drag ? col::yellow : col::text); g.fillEllipse (c.x - 4, c.y - 4, 8, 8); }
-        g.setColour (col::dim); g.setFont (FontOptions (11.0f)); g.drawText ("Custom curve (grey = active shape)", 10, 2, getWidth() - 20, 14, Justification::centredLeft);
+        g.setColour (col::dim); g.setFont (FontOptions (11.0f)); g.drawText ("Custom curve (grey = active shape)", 10, getHeight() - 16, getWidth() - 20, 14, Justification::centredLeft);
     }
     int nearest (Point<float> m) const { const auto& q = p.pats; int best = -1; float bd = 12; for (int i = 0; i < q.curveCount; ++i) { const float d = toPx (q.curveX[i], q.curveY[i]).getDistanceFrom (m); if (d < bd) { bd = d; best = i; } } return best; }
     void commit (br::Patterns q)

@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Create a GitHub release with this tag (e.g. v0.0.1-beta). Leave empty to only build."
+        description: "Create a GitHub release with this tag (e.g. v0.0.2-beta). Leave empty to only build."
         required: false
         default: ""
 
@@ -16,7 +16,7 @@ permissions:
   contents: write
 
 env:
-  VERSION_LABEL: v0.0.1-beta
+  VERSION_LABEL: v0.0.2-beta
 
 jobs:
   core-tests:
@@ -28,6 +28,52 @@ jobs:
           cmake -B build -DBR_BUILD_PLUGIN=OFF -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel
           ctest --test-dir build --output-on-failure
+
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install JUCE Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libasound2-dev libjack-jackd2-dev libfreetype-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxext-dev libgl-dev libgtk-3-dev libwebkit2gtk-4.1-dev libcurl4-openssl-dev
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --parallel --target BackReverse_VST3 BackReverse_CLAP BackReverse_Standalone br_core_tests BackReverseStateTest
+      - name: Unit, DSP and state tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Validate VST3 (pluginval, strictness 5)
+        run: |
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Linux.zip
+          unzip -oq pluginval.zip -d pluginval
+          chmod +x pluginval/pluginval
+          ./pluginval/pluginval --strictness-level 5 --skip-gui-tests --timeout-ms 600000 --validate "build/src/plugin/BackReverse_artefacts/Release/VST3/BackReverse.vst3"
+      - name: Validate CLAP (clap-validator)
+        run: |
+          # The upstream lockfile pins time 0.3.20, which does not build on current rustc, so the lockfile is not used.
+          cargo install --git https://github.com/free-audio/clap-validator --tag 0.3.2
+          clap-validator validate "build/src/plugin/BackReverse_artefacts/Release/CLAP/BackReverse.clap" --only-failed
+      - name: Package
+        run: |
+          art=build/src/plugin/BackReverse_artefacts/Release
+          v="${{ env.VERSION_LABEL }}"
+          mkdir -p dist stage/standalone stage/vst3 stage/clap
+          cp "$art/Standalone/BackReverse" stage/standalone/
+          cp README.md LICENSE COPYRIGHT-TRADEMARK.md stage/standalone/
+          cp -r "$art/VST3/BackReverse.vst3" stage/vst3/
+          cp README.md LICENSE stage/vst3/
+          cp "$art/CLAP/BackReverse.clap" stage/clap/
+          cp README.md LICENSE stage/clap/
+          tar -czf "dist/BackReverse-$v-Linux-x86_64-Standalone.tar.gz" -C stage/standalone .
+          tar -czf "dist/BackReverse-$v-Linux-x86_64-VST3.tar.gz" -C stage/vst3 .
+          tar -czf "dist/BackReverse-$v-Linux-x86_64-CLAP.tar.gz" -C stage/clap .
+          (cd dist && sha256sum *.tar.gz > "BackReverse-$v-Linux-x86_64-SHA256SUMS.txt")
+          ls -l dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BackReverse-Linux
+          path: dist/*
 
   windows:
     runs-on: windows-2022
@@ -75,20 +121,21 @@ jobs:
           path: dist/*
 
   release:
-    needs: [ core-tests, windows ]
+    needs: [ core-tests, linux, windows ]
     if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_tag != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: BackReverse-Windows
+          pattern: BackReverse-*
           path: dist
+          merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
           target_commitish: ${{ github.sha }}
-          name: BackReverse v0.0.1 beta
+          name: BackReverse v0.0.2 beta
           prerelease: true
           body_path: docs/RELEASE_NOTES.md
           files: dist/*

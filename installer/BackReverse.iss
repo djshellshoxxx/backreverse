@@ -9,14 +9,14 @@
 [Setup]
 AppId={{6E3B8C0B-6D0F-4C55-9E1B-5B7A0D2C1F42}
 AppName=BackReverse
-AppVersion=0.0.1
-AppVerName=BackReverse 0.0.1 beta
+AppVersion=0.0.2
+AppVerName=BackReverse 0.0.2 beta
 AppPublisher=Circuit Drift Labs
 AppPublisherURL=https://github.com/djshellshoxxx/backreverse
 DefaultDirName={autopf}\Circuit Drift Labs\BackReverse
 DefaultGroupName=BackReverse
 OutputDir={#OutDir}
-OutputBaseFilename=BackReverse-v0.0.1-beta-Windows-Setup
+OutputBaseFilename=BackReverse-v0.0.2-beta-Windows-Setup
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
