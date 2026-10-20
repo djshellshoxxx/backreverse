@@ -220,8 +220,16 @@ void BackReverseProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&
     {
         if (count <= 0) return;
         auto segment = P;
+        auto segmentPatterns = audioPats;
         if (velocityToWet) segment.mix *= midiVelocityValue;
-        if (wheelToSpeed) segment.ratio = jlimit (0.05f, 8.0f, segment.ratio * (0.5f + midiWheelValue * 1.5f));
+        if (wheelToSpeed)
+        {
+            const float factor = 0.5f + midiWheelValue * 1.5f;
+            segment.ratio = jlimit (0.05f, 8.0f, segment.ratio * factor);
+            const int rateCount = jlimit (1, br::kLane, segmentPatterns.rateLen);
+            for (int i = 0; i < rateCount; ++i)
+                segmentPatterns.rate[i].ratio = jlimit (0.05f, 8.0f, segmentPatterns.rate[i].ratio * factor);
+        }
         auto segmentHost = h;
         if (segmentHost.valid)
         {
@@ -230,7 +238,7 @@ void BackReverseProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&
                 segmentHost.ppq += (double) start * segmentHost.bpm / (60.0 * sr);
         }
         engine.process (inL + start, inR + start, outL + start, outR ? outR + start : nullptr,
-                        count, segment, audioPats, segmentHost);
+                        count, segment, segmentPatterns, segmentHost);
     };
 
     if (! triggerOnNote && ! velocityToWet && ! wheelToSpeed)
