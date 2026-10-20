@@ -62,7 +62,7 @@ inline const Topic topics[] = {
 "BackReverse accepts MIDI input in VST3 and CLAP. The MIDI tab contains three optional controls, all disabled by default.\n"
 "MIDI Note Trigger: a note-on starts file playback and restarts the pattern at that event's sample offset. For Live Input it restarts the pattern; live capture continues. Note-off does not stop playback.\n"
 "MIDI Velocity to Wet: the last note-on velocity scales the wet mix until another note-on arrives.\n"
-"MIDI Mod Wheel to Speed: MIDI CC 1 scales Speed from 0.5x at minimum through about 1x at center to 2x at maximum. The mapping follows the DAW's sample-offset events." },
+"MIDI Mod Wheel to Speed: MIDI CC 1 scales the global Speed and every active per-chunk speed-lane ratio from 0.5x at minimum through about 1x at center to 2x at maximum. The mapping follows the DAW's sample-offset events." },
 { "New in this beta",
 "A/B Compare (usability): header A and B hold two complete settings; A->B copies the current one across.\n"
 "Render to WAV (value): bounce the loaded file through the current settings, offline and deterministic. Rec records the live output.\n"
