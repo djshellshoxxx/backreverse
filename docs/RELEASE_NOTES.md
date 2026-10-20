@@ -1,3 +1,34 @@
+# BackReverse v0.0.2 alpha
+
+This alpha adds universal macOS packages and MIDI performance control. It is intended for early evaluation; test the standalone app and the plug-in formats in your DAW before relying on them in a project.
+
+### Downloads
+
+- Windows x64: installer, portable Standalone, VST3 and CLAP archives.
+- macOS Universal: Standalone, VST3 and CLAP archives with arm64 and x86_64 binaries.
+
+### New
+
+- MIDI Note Trigger starts file playback and restarts the active reverse pattern at the incoming note's sample offset.
+- MIDI Velocity to Wet scales the processed mix from the velocity of the latest note-on.
+- MIDI Mod Wheel to Speed maps CC 1 from 0.5x through 1x to 2x of the Speed setting.
+- All three MIDI mappings are opt-in, off by default, and sample-offset aware.
+- Applied the shared CDL palette and signature notch.
+
+### Verification
+
+- Core DSP suite: 108/108 checks passed locally with GCC 13.3 using a direct C++ build.
+- Full JUCE plug-in/Standalone build, state test, Windows validators and universal macOS packaging run in GitHub Actions; check the release workflow run for results.
+
+### Known limitations
+
+- Formant preservation and transient-sensitive stretching are not implemented.
+- Custom user preset files remain XML `.brpreset`; JSON import/export is still needed for full shared-standard compliance.
+- Theme selection, CPU-use gauge and first-run introduction are not implemented.
+- macOS packages are unsigned unless repository signing credentials are configured. Gatekeeper may require the user to approve an unsigned app.
+
+---
+
 ## BackReverse v0.0.1 beta (Windows x64)
 
 First public beta of BackReverse, the chunked-reverse audio manipulator by Circuit Drift Labs.

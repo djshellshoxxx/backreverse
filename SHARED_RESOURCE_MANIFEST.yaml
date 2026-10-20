@@ -1,0 +1,20 @@
+schema_version: 1
+consumer: djshellshoxxx/backreverse
+source_repository: djshellshoxxx/circuitdriftlabs-shared
+source_revision: 4c1a948bc93dc2e18ef676f2d3b913e7e1081eb7
+copied_paths:
+  standards:
+    - standards/README.md
+    - standards/AUDIO_APP_BASELINE.md
+    - standards/THEME_STYLE_SPEC.md
+    - standards/VST_PRODUCT_REQUIREMENTS.md
+    - standards/HELP_DOCUMENTATION.md
+  skills:
+    - skills/README.md
+  troubleshooting:
+    - troubleshooting/README.md
+review_notes:
+  - The shared skills folder contains its README but no skill payloads. Existing BackReverse skills were retained and relevant JUCE CI/release and lean-build guidance was reviewed.
+  - The shared troubleshooting README points to templates/TROUBLESHOOTING_TEMPLATE.md, which is absent at the recorded source revision. A BackReverse-local template is supplied in this repository.
+  - The shared baseline palette and the 2 px CDL notch are applied. The repository has no official CDL logo asset.
+  - The shared baseline is broader than the current product. Remaining gaps are listed in specs/implementation-audit-2026-10-20.md.

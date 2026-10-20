@@ -6,8 +6,8 @@ namespace ui {
 using namespace juce;
 
 namespace col {
-const Colour bg { 0xff14161b }, panel { 0xff1d2028 }, panel2 { 0xff252935 }, line { 0xff343a48 }, text { 0xffe6eaf2 }, dim { 0xff8a93a3 },
-             accent { 0xff4fd1c5 }, rev { 0xfff6a04d }, fwd { 0xff63b3ed }, red { 0xfff56565 }, green { 0xff68d391 }, purple { 0xffb794f4 }, yellow { 0xfff6e05e };
+const Colour bg { 0xff0e1116 }, panel { 0xff171b22 }, panel2 { 0xff202630 }, line { 0xff2a303a }, text { 0xffe6e8ec }, dim { 0xff8a929e },
+             accent { 0xffe8532a }, rev { 0xfff2c14e }, fwd { 0xff4fb6c4 }, red { 0xffe8532a }, green { 0xff7bc96f }, purple { 0xffb794f4 }, yellow { 0xfff2c14e };
 }
 
 class Look : public LookAndFeel_V4

@@ -28,7 +28,7 @@ public:
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
     const juce::String getName() const override { return "BackReverse"; }
-    bool acceptsMidi() const override { return false; }
+    bool acceptsMidi() const override { return true; }
     bool producesMidi() const override { return false; }
     double getTailLengthSeconds() const override { return 6.0; }
     // Presets are offered in the editor, not as host programs, so a host program change can never wipe restored state.
@@ -63,6 +63,9 @@ public:
     br::Engine engine;
     std::atomic<long long> blockCounter { 0 };
     double sr = 48000;
+    // Audio-thread-only performance modulation state. Initial wheel center is neutral.
+    float midiWheelValue = 64.0f / 127.0f;
+    float midiVelocityValue = 1.0f;
 
     // ---- file / capture
     bool loadFile (const juce::File&, juce::String* error = nullptr);

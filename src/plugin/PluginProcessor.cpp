@@ -188,7 +188,7 @@ void BackReverseProcessor::prepareToPlay (double rate, int block)
     else if (activeSrc) engine.setSource (&activeSrc->sb);
 }
 
-void BackReverseProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&)
+void BackReverseProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer& midi)
 {
     ScopedNoDenormals noDenormals;
     const int n = buffer.getNumSamples();
@@ -212,7 +212,60 @@ void BackReverseProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&
     const float* inR = ins > 1 ? buffer.getReadPointer (1) : inL;
     float* outL = buffer.getWritePointer (0);
     float* outR = outs > 1 ? buffer.getWritePointer (1) : nullptr;
-    engine.process (inL, inR, outL, outR, n, P, audioPats, h);
+    const bool triggerOnNote = get (brp::midiTrigger) > 0.5f;
+    const bool velocityToWet = get (brp::midiVelocity) > 0.5f;
+    const bool wheelToSpeed = get (brp::midiWheel) > 0.5f;
+
+    auto renderRange = [&] (int start, int count)
+    {
+        if (count <= 0) return;
+        auto segment = P;
+        if (velocityToWet) segment.mix *= midiVelocityValue;
+        if (wheelToSpeed) segment.ratio = jlimit (0.05f, 8.0f, segment.ratio * (0.5f + midiWheelValue * 1.5f));
+        auto segmentHost = h;
+        if (segmentHost.valid)
+        {
+            segmentHost.samplePos += start;
+            if (segmentHost.playing && segmentHost.bpm > 0)
+                segmentHost.ppq += (double) start * segmentHost.bpm / (60.0 * sr);
+        }
+        engine.process (inL + start, inR + start, outL + start, outR ? outR + start : nullptr,
+                        count, segment, audioPats, segmentHost);
+    };
+
+    if (! triggerOnNote && ! velocityToWet && ! wheelToSpeed)
+    {
+        renderRange (0, n);
+    }
+    else
+    {
+        // Split only at events that affect BackReverse so MIDI triggers and modulation
+        // changes take effect at their exact sample offset without allocating in the callback.
+        MidiBuffer::Iterator it (midi);
+        MidiMessage message; int eventPosition = 0; int cursor = 0;
+        while (it.getNextEvent (message, eventPosition))
+        {
+            if (eventPosition < cursor || eventPosition > n) continue;
+            renderRange (cursor, eventPosition - cursor);
+            cursor = eventPosition;
+
+            if (message.isNoteOn())
+            {
+                if (velocityToWet) midiVelocityValue = message.getFloatVelocity();
+                if (triggerOnNote)
+                {
+                    engine.ctl.transport.store (1, std::memory_order_release);
+                    engine.ctl.restart.store (true, std::memory_order_release);
+                }
+            }
+            else if (wheelToSpeed && message.isController() && message.getControllerNumber() == 1)
+            {
+                midiWheelValue = (float) message.getControllerValue() / 127.0f;
+            }
+        }
+        renderRange (cursor, n - cursor);
+    }
+    midi.clear();
     if (auto* w = writer.load (std::memory_order_acquire); w != nullptr && outs >= 2) w->write (buffer.getArrayOfReadPointers(), n);
     blockCounter.fetch_add (1, std::memory_order_release);
     lastBlockMs.store (Time::getMillisecondCounter(), std::memory_order_relaxed);
