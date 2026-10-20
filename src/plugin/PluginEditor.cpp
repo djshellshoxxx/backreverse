@@ -566,7 +566,7 @@ struct BackReverseEditor::Content : public Component
             about->setJustificationType (Justification::topLeft); about->setColour (Label::textColourId, col::dim); about->setFont (FontOptions (13.0f));
             about->setText ("MIDI Note Trigger starts file playback and restarts the current reverse pattern at the incoming note's sample position. In Live Input mode it restarts the pattern while live capture continues.\n\n"
                             "MIDI Velocity to Wet scales the processed signal mix from silence to the current Wet/Dry setting. The most recent note-on velocity remains active until another note-on.\n\n"
-                            "MIDI Mod Wheel to Speed maps CC 1 to 0.5x–2x of the Speed setting, with the wheel center near 1x. Events are applied at their sample offsets. All three controls are off by default.", dontSendNotification);
+                            "MIDI Mod Wheel to Speed maps CC 1 to 0.5x–2x of the global Speed and every active per-chunk speed-lane ratio, with the wheel center near 1x. Events are applied at their sample offsets. All three controls are off by default.", dontSendNotification);
             pg->onResize = [=] { auto b = pg->getLocalBounds().reduced (6); mp->setBounds (b.removeFromTop (100)); b.removeFromTop (10); about->setBounds (b.reduced (6)); };
             addTab ("MIDI", pg);
         }
