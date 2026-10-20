@@ -253,6 +253,9 @@ void BackReverseProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&
         MidiMessage message; int eventPosition = 0; int cursor = 0;
         while (it.getNextEvent (message, eventPosition))
         {
+            const bool noteAction = message.isNoteOn() && (triggerOnNote || velocityToWet);
+            const bool wheelAction = wheelToSpeed && message.isController() && message.getControllerNumber() == 1;
+            if (! noteAction && ! wheelAction) continue;
             if (eventPosition < cursor || eventPosition > n) continue;
             renderRange (cursor, eventPosition - cursor);
             cursor = eventPosition;
@@ -266,7 +269,7 @@ void BackReverseProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&
                     engine.ctl.restart.store (true, std::memory_order_release);
                 }
             }
-            else if (wheelToSpeed && message.isController() && message.getControllerNumber() == 1)
+            else if (wheelAction)
             {
                 midiWheelValue = (float) message.getControllerValue() / 127.0f;
             }
