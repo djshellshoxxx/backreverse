@@ -119,7 +119,7 @@ jobs:
           RELEASE_TAG: ${{ github.event.inputs.release_tag || (github.ref == 'refs/heads/main' && env.VERSION_LABEL) || github.ref_name }}
         run: |
           asset_names="$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' 2>/dev/null || true)"
-          if printf '%s\\n' "$asset_names" | grep -Fxq 'BackReverse-v0.0.1-beta-Windows-Setup.exe'; then
+          if echo "$asset_names" | grep -Fxq 'BackReverse-v0.0.1-beta-Windows-Setup.exe'; then
             gh release delete-asset "$RELEASE_TAG" "BackReverse-v0.0.1-beta-Windows-Setup.exe" --yes
           fi
       - uses: actions/download-artifact@v4
