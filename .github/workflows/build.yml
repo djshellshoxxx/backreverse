@@ -16,7 +16,7 @@ permissions:
   contents: write
 
 env:
-  VERSION_LABEL: v0.0.1-beta
+  VERSION_LABEL: v0.0.2-alpha
 
 jobs:
   core-tests:
@@ -74,21 +74,58 @@ jobs:
           name: BackReverse-Windows
           path: dist/*
 
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure universal macOS targets
+        run: >-
+          cmake -B build -DBR_BUILD_PLUGIN=ON -DBR_BUILD_TESTS=ON
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+      - name: Build Standalone, VST3, CLAP and state tests
+        run: cmake --build build --config Release --parallel 3 --target BackReverse_VST3 BackReverse_CLAP BackReverse_Standalone br_core_tests BackReverseStateTest
+      - name: Unit, DSP and state tests
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Verify universal app and plug-in binaries
+        run: |
+          art="build/src/plugin/BackReverse_artefacts/Release"
+          lipo -info "$art/Standalone/BackReverse.app/Contents/MacOS/BackReverse"
+          lipo -info "$art/VST3/BackReverse.vst3/Contents/MacOS/BackReverse"
+          lipo -info "$art/CLAP/BackReverse.clap/Contents/MacOS/BackReverse"
+      - name: Package
+        run: |
+          art="build/src/plugin/BackReverse_artefacts/Release"
+          mkdir -p dist
+          ditto -c -k --sequesterRsrc --keepParent "$art/Standalone/BackReverse.app" "dist/BackReverse-${VERSION_LABEL}-macOS-Universal-Standalone.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$art/VST3/BackReverse.vst3" "dist/BackReverse-${VERSION_LABEL}-macOS-Universal-VST3.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$art/CLAP/BackReverse.clap" "dist/BackReverse-${VERSION_LABEL}-macOS-Universal-CLAP.zip"
+          cp README.md LICENSE COPYRIGHT-TRADEMARK.md dist/
+          ls -lh dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BackReverse-macOS-Universal
+          path: dist/*
+
   release:
-    needs: [ core-tests, windows ]
-    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_tag != ''
+    needs: [ core-tests, windows, macos ]
+    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_tag != '' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: BackReverse-Windows
-          path: dist
+          path: dist/windows
+      - uses: actions/download-artifact@v4
+        with:
+          name: BackReverse-macOS-Universal
+          path: dist/macos
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
+          tag_name: ${{ github.event.inputs.release_tag || (github.ref == 'refs/heads/main' && env.VERSION_LABEL) || github.ref_name }}
           target_commitish: ${{ github.sha }}
-          name: BackReverse v0.0.1 beta
+          name: BackReverse v0.0.2 alpha
           prerelease: true
           body_path: docs/RELEASE_NOTES.md
-          files: dist/*
+          files: dist/**

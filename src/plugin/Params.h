@@ -126,7 +126,10 @@ X(scrHold, "Freeze On Hold", B, 0,1,1,0, "", "", "Holding still freezes a micro-
 X(scrActive, "Scrub (Host)", B, 0,1,0,0, "", "", "Automatable scrub: while on, playback follows Scrub Position.", P.scrActive = v > 0.5f) \
 X(scrPos, "Scrub Position", F, 0,100,0,0, "", "%", "Automatable playhead position used when Scrub (Host) is on.", P.scrPos = v * 0.01f) \
 X(loop, "Loop", B, 0,1,1,0, "", "", "Loop the file/loop region.", P.loop = v > 0.5f) \
-X(fileHostSync, "Follow Host Transport", B, 0,1,0,0, "", "", "File playback starts/stops/seeks with the host transport.", P.fileHostSync = v > 0.5f)
+X(fileHostSync, "Follow Host Transport", B, 0,1,0,0, "", "", "File playback starts/stops/seeks with the host transport.", P.fileHostSync = v > 0.5f) \
+X(midiTrigger, "MIDI Note Trigger", B, 0,1,0,0, "", "", "A MIDI note-on starts file playback and restarts the reverse pattern at that event's sample position.", (void) v) \
+X(midiVelocity, "MIDI Velocity to Wet", B, 0,1,0,0, "", "", "Scale the processed wet mix by the velocity of the most recent MIDI note-on.", (void) v) \
+X(midiWheel, "MIDI Mod Wheel to Speed", B, 0,1,0,0, "", "", "Map MIDI CC 1 from 0.5x to 2x of the global Speed and active per-chunk speed lane; wheel center is neutral.", (void) v)
 
 namespace brp {
 enum Kind { F, I, B, C };
