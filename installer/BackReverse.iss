@@ -6,6 +6,10 @@
   #define OutDir "..\dist"
 #endif
 
+#ifndef VersionLabel
+  #define VersionLabel "v0.0.2-alpha"
+#endif
+
 [Setup]
 AppId={{6E3B8C0B-6D0F-4C55-9E1B-5B7A0D2C1F42}
 AppName=BackReverse
