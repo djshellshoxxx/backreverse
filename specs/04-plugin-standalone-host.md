@@ -46,7 +46,7 @@ VST3 and CLAP MAY accept MIDI input for performance control. The initial MIDI fe
 
 - **MIDI Note Trigger:** each non-zero note-on starts file playback when the source is a file and restarts the active chunk pattern at the note's sample offset. For live input it restarts the pattern without interrupting capture. Note-off does not stop playback.
 - **MIDI Velocity to Wet:** the latest note-on velocity scales the configured processed-signal mix from zero to its configured value. The value remains active until another note-on.
-- **MIDI Mod Wheel to Speed:** CC 1 scales the configured speed from 0.5x at minimum, through approximately 1x at center, to 2x at maximum. Clamp the resulting speed to the engine's supported range.
+- **MIDI Mod Wheel to Speed:** CC 1 scales the configured global speed and every active per-chunk speed-lane ratio from 0.5x at minimum, through approximately 1x at center, to 2x at maximum. Clamp the resulting speed to the engine's supported range.
 
 All mappings MUST be disabled by default, exposed as persistent/host-automatable toggles, applied at event sample offsets, and MUST NOT allocate or block in the audio callback. MIDI input MUST not be emitted as MIDI output. Verify note and controller events at offset 0, mid-block and block-end, including irregular host block sizes.
 
