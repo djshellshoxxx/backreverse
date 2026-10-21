@@ -66,3 +66,7 @@ Merging to `main`, pushing a `v*` tag, or dispatching the workflow with a `relea
 
 ## Licensing notes
 The source code is MIT ([LICENSE](LICENSE)). The names BackReverse™ and Circuit Drift Labs™ are covered in [COPYRIGHT-TRADEMARK.md](COPYRIGHT-TRADEMARK.md). The binaries link **JUCE 8**, which you can use under its free *Starter* licence (under USD 50k revenue) or under AGPLv3. They also include the Steinberg VST3 SDK and the MIT-licensed CLAP SDK. If you distribute binaries, check that your use fits those terms.
+
+## Wiki
+
+Wiki source pages are in [docs/wiki/](docs/wiki/Home.md): developer guide, architecture summary and codebase map. The specifications in `specs/` remain the authority.
